@@ -4,7 +4,7 @@ import schedule
 import time
 from dotenv import load_dotenv
 
-from config import SCHEDULE_INTERVAL_HOURS, USE_AI_FILTER
+from config import SCHEDULE_INTERVAL_HOURS, USE_AI_FILTER, LOG_ONLY
 from crawler import crawl_jobs
 from database import init_db, is_seen, mark_seen, mark_notified, get_stats
 from ai_filter import is_job_matching, check_excluded
@@ -55,7 +55,10 @@ def run_once() -> None:
 def main() -> None:
     load_dotenv()
 
-    missing = [v for v in ("ANTHROPIC_API_KEY", "SLACK_WEBHOOK_URL") if not os.environ.get(v)]
+    required = ["ANTHROPIC_API_KEY"] if USE_AI_FILTER else []
+    if not LOG_ONLY:
+        required.append("SLACK_WEBHOOK_URL")
+    missing = [v for v in required if not os.environ.get(v)]
     if missing:
         raise SystemExit(f"필수 환경변수 누락: {', '.join(missing)}\n.env 파일을 확인하세요.")
 

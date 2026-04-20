@@ -38,7 +38,12 @@ EXCLUDED_KEYWORDS = [
 # AI 필터 활성화 여부
 # False: EXCLUDED_KEYWORDS만 검사 후 검색 결과를 모두 Slack 발송 (AI 호출 없음)
 # True: AI가 조건 부합 여부를 판단해 일치하는 공고만 발송
-USE_AI_FILTER = True
+USE_AI_FILTER = False
+
+# 알림 출력 방식
+# True: Slack 대신 로그로만 출력 (테스트용, SLACK_WEBHOOK_URL 불필요)
+# False: Slack Webhook으로 발송
+LOG_ONLY = True
 
 # AI 판단 시 추가 조건 (자유 형식)
 ADDITIONAL_CONDITIONS = """

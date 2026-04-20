@@ -3,7 +3,7 @@ import os
 from slack_sdk.webhook import WebhookClient
 from slack_sdk.errors import SlackApiError
 from crawler import JobPosting
-from config import PREFERRED_COMPANIES
+from config import PREFERRED_COMPANIES, LOG_ONLY
 
 logger = logging.getLogger(__name__)
 
@@ -60,8 +60,22 @@ def _build_blocks(job: JobPosting, reason: str) -> list[dict]:
     return blocks
 
 
+def _log_notification(job: JobPosting, reason: str) -> None:
+    star = " ⭐" if _is_preferred(job.company) else ""
+    logger.info(
+        "[공고 매칭]%s %s | %s | %s | %s | %s",
+        star, job.company, job.title, job.career, job.deadline, job.url,
+    )
+    if reason:
+        logger.info("  └ 이유: %s", reason)
+
+
 def send_job_notification(job: JobPosting, reason: str) -> bool:
-    """Slack Webhook으로 채용공고 알림을 보낸다. 성공 여부 반환."""
+    """채용공고 알림을 발송한다. LOG_ONLY=True면 로그로만 출력. 성공 여부 반환."""
+    if LOG_ONLY:
+        _log_notification(job, reason)
+        return True
+
     try:
         webhook = _get_webhook()
         blocks = _build_blocks(job, reason)
