@@ -77,6 +77,15 @@ python main.py
 2. 통과한 공고만 claude-haiku API 호출 → `RESULT: YES/NO` + `REASON:` 파싱
 3. AI 모델 변경 시 `ai_filter.py`의 `model` 파라미터 수정
 
+## 테스트 규칙
+
+별도 언급이 없는 한 테스트는 항상 아래 설정으로 실행할 것:
+- `USE_AI_FILTER = False` — AI 호출 없이 실행
+- `LOG_ONLY = True` — Slack 미발송, 로그 출력으로 확인
+
+테스트 전 config.py에서 위 두 값을 확인하고, 다르면 변경 후 실행.
+테스트 완료 후 원래 설정으로 되돌릴 것.
+
 ## 작업 완료 후 Git 커밋 규칙
 
 작업이 끝날 때마다 반드시 git commit을 생성할 것:
