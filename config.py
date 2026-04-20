@@ -5,16 +5,12 @@
 
 # 희망 직무 키워드 (하나라도 포함되면 대상)
 TARGET_JOBS = [
-    "게임 기획",
-    "레벨 디자이너",
-    "콘텐츠 기획",
-    "시스템 기획",
-    "게임 디자이너",
+    "서버",
 ]
 
 # 경력 조건
 CAREER_MIN_YEARS = 0   # 최소 경력 (0 = 신입 포함)
-CAREER_MAX_YEARS = 5   # 최대 경력 (None = 제한 없음)
+CAREER_MAX_YEARS = None   # 최대 경력 (None = 제한 없음)
 ACCEPT_NEWCOMER = True  # 신입 지원 가능 여부
 
 # 선호 회사 키워드 (포함되면 우선순위 높음)
@@ -40,10 +36,16 @@ EXCLUDED_KEYWORDS = [
 # True: AI가 조건 부합 여부를 판단해 일치하는 공고만 발송
 USE_AI_FILTER = False
 
+# 이력서 기반 AI 필터
+# USE_AI_FILTER=True일 때만 적용됨
+# RESUME_PATH에 파일이 있으면 이력서 내용을 AI 판단 기준으로 사용
+# None 또는 파일 없으면 config.py의 조건(TARGET_JOBS 등)으로 폴백
+RESUME_PATH: str | None = "resume.pdf"
+
 # 알림 출력 방식
 # True: Slack 대신 로그로만 출력 (테스트용, SLACK_WEBHOOK_URL 불필요)
 # False: Slack Webhook으로 발송
-LOG_ONLY = True
+LOG_ONLY = False
 
 # AI 판단 시 추가 조건 (자유 형식)
 ADDITIONAL_CONDITIONS = """

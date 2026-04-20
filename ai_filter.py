@@ -10,7 +10,9 @@ from config import (
     PREFERRED_COMPANIES,
     EXCLUDED_KEYWORDS,
     ADDITIONAL_CONDITIONS,
+    RESUME_PATH,
 )
+from resume_loader import load_resume
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +26,7 @@ def _get_client() -> anthropic.Anthropic:
     return _client
 
 
-def _build_prompt(job: JobPosting) -> str:
+def _build_prompt_from_config(job: JobPosting) -> str:
     conditions = f"""
 희망 직무: {', '.join(TARGET_JOBS)}
 경력 조건: {CAREER_MIN_YEARS}년 이상 ~ {CAREER_MAX_YEARS}년 이하 (신입 허용: {'예' if ACCEPT_NEWCOMER else '아니오'})
@@ -34,16 +36,7 @@ def _build_prompt(job: JobPosting) -> str:
 {ADDITIONAL_CONDITIONS}
 """.strip()
 
-    posting = f"""
-공고 제목: {job.title}
-회사명: {job.company}
-경력 요건: {job.career}
-근무지: {job.location}
-마감일: {job.deadline}
-태그: {', '.join(job.tags)}
-공고 내용:
-{job.description[:2000]}
-""".strip()
+    posting = _format_posting(job)
 
     return f"""아래 채용공고가 구직자의 조건에 부합하는지 판단해주세요.
 
@@ -62,6 +55,46 @@ def _build_prompt(job: JobPosting) -> str:
 반드시 아래 형식으로만 응답하세요:
 RESULT: YES 또는 RESULT: NO
 REASON: 판단 이유 (한 문장)"""
+
+
+def _build_prompt_from_resume(job: JobPosting, resume_text: str) -> str:
+    posting = _format_posting(job)
+
+    return f"""아래 이력서를 가진 구직자에게 이 채용공고가 적합한지 판단해주세요.
+
+[구직자 이력서]
+{resume_text[:4000]}
+
+[채용공고]
+{posting}
+
+판단 기준:
+1. 구직자의 기술 스택과 경력이 공고 요건과 맞는가
+2. 경력 연차가 공고 요건 범위 내인가
+3. 구직자가 지원할 만한 직무인가
+
+반드시 아래 형식으로만 응답하세요:
+RESULT: YES 또는 RESULT: NO
+REASON: 판단 이유 (한 문장)"""
+
+
+def _format_posting(job: JobPosting) -> str:
+    return f"""공고 제목: {job.title}
+회사명: {job.company}
+경력 요건: {job.career}
+근무지: {job.location}
+마감일: {job.deadline}
+태그: {', '.join(job.tags)}
+공고 내용:
+{job.description[:2000]}""".strip()
+
+
+def _build_prompt(job: JobPosting) -> str:
+    if RESUME_PATH:
+        resume_text = load_resume(RESUME_PATH)
+        if resume_text:
+            return _build_prompt_from_resume(job, resume_text)
+    return _build_prompt_from_config(job)
 
 
 def check_excluded(job: JobPosting) -> tuple[bool, str]:

@@ -92,6 +92,11 @@ ADDITIONAL_CONDITIONS = """
 - RPG, 액션 장르 프로젝트 선호
 """
 
+# 이력서 기반 AI 필터 (USE_AI_FILTER=True일 때만 적용)
+# PDF 파일 경로를 지정하면 이력서 내용을 AI 판단 기준으로 사용
+# None이거나 파일이 없으면 config.py의 조건(TARGET_JOBS 등)으로 폴백
+RESUME_PATH = "resume.pdf"
+
 # 키워드당 크롤링할 페이지 수 (TARGET_JOBS 키워드별 각각 적용)
 CRAWL_PAGES = 3
 
@@ -165,9 +170,11 @@ gamejob-bot/
 ├── crawler.py         # gamejob.co.kr 목록/상세 페이지 파싱
 ├── database.py        # SQLite 중복 방지, 매칭·발송 상태 관리
 ├── ai_filter.py       # Claude Haiku AI 조건 판단
+├── resume_loader.py   # PDF 이력서 로드 및 텍스트 추출
 ├── notifier.py        # Slack Block Kit 알림 발송
 ├── requirements.txt   # Python 의존성
 ├── .env.example       # 환경변수 템플릿
+├── resume.pdf         # 이력서 파일 (선택, gitignore됨)
 └── .env               # 환경변수 (gitignore됨)
 ```
 
@@ -182,6 +189,7 @@ main.py → crawler.py → database.py → ai_filter.py → notifier.py
 | `config.py` | 직무/경력/선호 회사 조건 + 크롤링/스케줄 설정 전체 |
 | `crawler.py` | requests + BeautifulSoup으로 목록/상세 페이지 파싱, `JobPosting` dataclass 반환 |
 | `database.py` | SQLite `seen_jobs` 테이블로 중복 방지, 매칭·발송 상태 관리 |
-| `ai_filter.py` | claude-haiku-4-5에 config 조건을 프롬프트로 전달, YES/NO + 이유 파싱 |
+| `ai_filter.py` | claude-haiku-4-5에 config 조건 또는 이력서를 프롬프트로 전달, YES/NO + 이유 파싱 |
+| `resume_loader.py` | PDF 이력서를 텍스트로 추출, 앱 시작 시 1회 로드 후 캐시 |
 | `notifier.py` | Slack Block Kit 카드 발송, 선호 회사 ⭐ 표시 |
 | `main.py` | 파이프라인 조율, `schedule` 라이브러리로 3시간 반복 |
