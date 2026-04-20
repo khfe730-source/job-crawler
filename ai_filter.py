@@ -84,7 +84,7 @@ def is_job_matching(job: JobPosting) -> tuple[bool, str]:
 
     try:
         response = _get_client().models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.0-flash-lite",
             contents=prompt,
             config=types.GenerateContentConfig(max_output_tokens=200),
         )
