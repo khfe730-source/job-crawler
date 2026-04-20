@@ -79,7 +79,9 @@ python main.py
 
 ## 테스트 규칙
 
-별도 언급이 없는 한 테스트는 항상 아래 설정으로 실행할 것:
+별도 언급이 없는 한 테스트는 항상 아래 조건으로 실행할 것:
+
+- 가상환경(venv) 활성화 후 실행: `source venv/Scripts/activate && python main.py`
 - `USE_AI_FILTER = False` — AI 호출 없이 실행
 - `LOG_ONLY = True` — Slack 미발송, 로그 출력으로 확인
 
