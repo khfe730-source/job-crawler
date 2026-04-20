@@ -35,7 +35,7 @@ python main.py
 | `config.py` | 직무/경력/선호 회사 조건 + 크롤링/스케줄 설정 전체 |
 | `crawler.py` | requests + BeautifulSoup으로 목록/상세 페이지 파싱, `JobPosting` dataclass 반환 |
 | `database.py` | SQLite `seen_jobs` 테이블로 중복 방지, 매칭·발송 상태 관리 |
-| `ai_filter.py` | claude-haiku-4-5에 config 조건을 프롬프트로 전달, YES/NO + 이유 파싱 |
+| `ai_filter.py` | Gemini API(gemini-2.0-flash)에 config 조건을 프롬프트로 전달, YES/NO + 이유 파싱 |
 | `notifier.py` | Slack Block Kit 카드 발송, 선호 회사 ⭐ 표시 |
 | `main.py` | 파이프라인 조율, `schedule` 라이브러리로 3시간 반복 |
 
@@ -53,7 +53,7 @@ python main.py
 ## 환경변수
 
 `.env` 파일에 설정 (`.env.example` 참고):
-- `ANTHROPIC_API_KEY` — Anthropic API 키
+- `GEMINI_API_KEY` — Google AI Studio에서 무료 발급
 - `SLACK_WEBHOOK_URL` — Slack Incoming Webhook URL
 
 ## gamejob.co.kr 파싱 특이사항

@@ -62,7 +62,7 @@ def run_once() -> None:
 def main() -> None:
     load_dotenv()
 
-    required = ["ANTHROPIC_API_KEY"] if USE_AI_FILTER else []
+    required = ["GEMINI_API_KEY"] if USE_AI_FILTER else []
     if not LOG_ONLY:
         required.append("SLACK_WEBHOOK_URL")
     missing = [v for v in required if not os.environ.get(v)]

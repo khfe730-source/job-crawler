@@ -1,6 +1,7 @@
 import logging
 import os
-import anthropic
+from google import genai
+from google.genai import types
 from crawler import JobPosting
 from config import (
     TARGET_JOBS,
@@ -14,13 +15,13 @@ from config import (
 
 logger = logging.getLogger(__name__)
 
-_client: anthropic.Anthropic | None = None
+_client: genai.Client | None = None
 
 
-def _get_client() -> anthropic.Anthropic:
+def _get_client() -> genai.Client:
     global _client
     if _client is None:
-        _client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+        _client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
     return _client
 
 
@@ -74,7 +75,7 @@ def check_excluded(job: JobPosting) -> tuple[bool, str]:
 
 
 def is_job_matching(job: JobPosting) -> tuple[bool, str]:
-    """Anthropic API로 공고가 조건에 맞는지 판단한다. (matched, reason) 반환"""
+    """Gemini API로 공고가 조건에 맞는지 판단한다. (matched, reason) 반환"""
     passed, reason = check_excluded(job)
     if not passed:
         return False, reason
@@ -82,12 +83,12 @@ def is_job_matching(job: JobPosting) -> tuple[bool, str]:
     prompt = _build_prompt(job)
 
     try:
-        message = _get_client().messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=200,
-            messages=[{"role": "user", "content": prompt}],
+        response = _get_client().models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(max_output_tokens=200),
         )
-        response_text = message.content[0].text.strip()
+        response_text = response.text.strip()
         logger.debug("AI 응답 [%s]: %s", job.job_id, response_text)
 
         matched = "RESULT: YES" in response_text
@@ -99,6 +100,6 @@ def is_job_matching(job: JobPosting) -> tuple[bool, str]:
 
         return matched, reason
 
-    except anthropic.APIError as e:
-        logger.error("Anthropic API 오류 [%s]: %s", job.job_id, e)
+    except Exception as e:
+        logger.error("Gemini API 오류 [%s]: %s", job.job_id, e)
         return False, f"API 오류: {e}"
