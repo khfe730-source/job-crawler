@@ -59,6 +59,29 @@ python main.py
 
 ## AI 필터 동작 방식
 
-1. `EXCLUDED_KEYWORDS`는 API 호출 없이 사전 검사로 제외 (비용 절감)
-2. 통과한 공고만 claude-haiku API 호출 → `RESULT: YES/NO` + `REASON:` 파싱
-3. AI 모델 변경 시 `ai_filter.py`의 `model` 파라미터 수정
+1. **제목 사전 필터** (`PREFILTER_BY_TITLE=True`): 목록 페이지 제목에 `TARGET_JOBS` 키워드가 없으면 상세 페이지 미요청 + AI 미호출 (HTTP 요청 & 토큰 절약)
+2. `EXCLUDED_KEYWORDS`는 API 호출 없이 사전 검사로 제외 (비용 절감)
+3. 통과한 공고만 claude-haiku API 호출 → `RESULT: YES/NO` + `REASON:` 파싱
+4. AI 모델 변경 시 `ai_filter.py`의 `model` 파라미터 수정
+
+## 작업 완료 후 Git 커밋 규칙
+
+작업이 끝날 때마다 반드시 git commit을 생성할 것:
+
+```bash
+git add <변경된 파일>
+git commit -m "<type>: <변경 내용 요약>"
+```
+
+- 커밋 타입: `feat` (기능), `fix` (버그), `refactor` (리팩토링), `docs` (문서), `chore` (설정)
+- 커밋 단위: 논리적으로 하나의 작업 단위마다 1커밋 (여러 파일이라도 같은 목적이면 한 커밋)
+- 커밋 메시지: 한국어 또는 영어 통일, 무엇을 왜 했는지 명확히 기술
+
+## README.md 유지 규칙
+
+아래 항목이 변경될 경우 반드시 `README.md`도 함께 수정할 것:
+- `config.py` — 설정 항목 추가/삭제/변경 시 "구직 조건 설정" 섹션 업데이트
+- `requirements.txt` — 의존성 변경 시 "요구사항" 섹션 업데이트
+- `.env.example` — 환경변수 추가/삭제 시 "환경변수 설정" 섹션 업데이트
+- 파일 추가/삭제 시 "폴더 구조" 및 "파이프라인 흐름" 섹션 업데이트
+- 실행 방법 변경 시 "실행 방법" 섹션 업데이트

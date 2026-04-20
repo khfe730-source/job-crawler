@@ -42,6 +42,11 @@ ADDITIONAL_CONDITIONS = """
 - RPG, 액션 장르 프로젝트 선호
 """
 
+# 사전 필터링 설정 (AI 호출 전 제목으로 1차 필터)
+# True: TARGET_JOBS 키워드가 제목에 없으면 상세 페이지 미요청 + AI 미호출
+# False: 모든 공고 상세 조회 후 AI 판단
+PREFILTER_BY_TITLE = True
+
 # 크롤링 설정
 GAMEJOB_BASE_URL = "https://www.gamejob.co.kr"
 GAMEJOB_LIST_URL = "https://www.gamejob.co.kr/List_GI/GIB_List.asp"

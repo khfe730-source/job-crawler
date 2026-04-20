@@ -24,12 +24,18 @@ def run_once() -> None:
 
     jobs = crawl_jobs()
     new_count = 0
+    pre_filtered_count = 0
     matched_count = 0
 
     for job in jobs:
         if is_seen(job.job_id):
             continue
         new_count += 1
+
+        if job.pre_filtered:
+            pre_filtered_count += 1
+            mark_seen(job.job_id, job.title, job.company, job.url, is_matched=False)
+            continue
 
         matched, reason = is_job_matching(job)
         mark_seen(job.job_id, job.title, job.company, job.url, is_matched=matched)
@@ -41,8 +47,10 @@ def run_once() -> None:
 
     stats = get_stats()
     logger.info(
-        "=== 완료 | 신규: %d개, 조건 부합: %d개 | 누적 총계: %s ===",
+        "=== 완료 | 신규: %d개 (제목 필터 제외: %d개, AI 검토: %d개), 조건 부합: %d개 | 누적 총계: %s ===",
         new_count,
+        pre_filtered_count,
+        new_count - pre_filtered_count,
         matched_count,
         stats,
     )

@@ -10,6 +10,7 @@ from config import (
     CRAWL_PAGES,
     REQUEST_DELAY,
     TARGET_JOBS,
+    PREFILTER_BY_TITLE,
 )
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,18 @@ class JobPosting:
     url: str
     description: str = ""
     tags: list[str] = field(default_factory=list)
+    pre_filtered: bool = False  # 제목 사전 필터에서 제외됨 (상세 미조회)
+
+
+def _passes_title_filter(title: str) -> bool:
+    """TARGET_JOBS의 키워드 단어가 하나라도 제목에 포함되면 True."""
+    for kw in TARGET_JOBS:
+        if kw in title:
+            return True
+        for word in kw.split():
+            if len(word) >= 2 and word in title:
+                return True
+    return False
 
 
 def _fetch_page(page: int) -> Optional[BeautifulSoup]:
@@ -131,10 +144,25 @@ def crawl_jobs() -> list[JobPosting]:
             logger.info("페이지 %d에서 공고를 찾지 못했습니다.", page)
             break
 
+        pre_filtered_in_page = 0
         for item in raw_list:
             if item["job_id"] in seen_ids:
                 continue
             seen_ids.add(item["job_id"])
+
+            if PREFILTER_BY_TITLE and not _passes_title_filter(item["title"]):
+                pre_filtered_in_page += 1
+                all_postings.append(JobPosting(
+                    job_id=item["job_id"],
+                    title=item["title"],
+                    company=item["company"],
+                    career=item["career"],
+                    location=item["location"],
+                    deadline=item["deadline"],
+                    url=item["url"],
+                    pre_filtered=True,
+                ))
+                continue
 
             time.sleep(REQUEST_DELAY)
             description, tags = _fetch_detail(item["url"])
@@ -150,6 +178,9 @@ def crawl_jobs() -> list[JobPosting]:
                 description=description,
                 tags=tags,
             ))
+
+        if pre_filtered_in_page:
+            logger.info("페이지 %d: 제목 사전 필터로 %d개 제외", page, pre_filtered_in_page)
 
         time.sleep(REQUEST_DELAY)
 
