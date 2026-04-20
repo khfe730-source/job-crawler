@@ -34,13 +34,7 @@ EXCLUDED_KEYWORDS = [
 # AI 필터 활성화 여부
 # False: EXCLUDED_KEYWORDS만 검사 후 검색 결과를 모두 Slack 발송 (AI 호출 없음)
 # True: AI가 조건 부합 여부를 판단해 일치하는 공고만 발송
-USE_AI_FILTER = False
-
-# 이력서 기반 AI 필터
-# USE_AI_FILTER=True일 때만 적용됨
-# RESUME_PATH에 파일이 있으면 이력서 내용을 AI 판단 기준으로 사용
-# None 또는 파일 없으면 config.py의 조건(TARGET_JOBS 등)으로 폴백
-RESUME_PATH: str | None = "resume.pdf"
+USE_AI_FILTER = True
 
 # 알림 출력 방식
 # True: Slack 대신 로그로만 출력 (테스트용, SLACK_WEBHOOK_URL 불필요)
@@ -49,9 +43,10 @@ LOG_ONLY = False
 
 # AI 판단 시 추가 조건 (자유 형식)
 ADDITIONAL_CONDITIONS = """
-- 재택근무 또는 하이브리드 근무 가능한 회사 선호
-- 인디/소규모 스튜디오보다 중견 이상 회사 선호
-- RPG, 액션 장르 프로젝트 선호
+- 기술 스택(상) : k8s, docker, aws, C++, C#, Argocd, Kustomize, Git, Agones, Karpenter
+- 기술 스택(중) : jenkins, SVN, Claude, Cursor, MySQL, Redis, Prometheus, Grafana, ElasticSearch, Fluentd, Kibana (EFK), Cluster-autoscaler
+- 기술 스택(하) : Golang, Python, MSSQL
+- 근무지 판교, 강남 선호
 """
 
 # 크롤링 설정
