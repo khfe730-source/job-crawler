@@ -40,6 +40,12 @@ class JobPosting:
     tags: list[str] = field(default_factory=list)
 
 
+def _title_matches_any_keyword(title: str) -> bool:
+    """제목에 TARGET_JOBS 키워드 중 하나라도 포함되면 True."""
+    title_lower = title.lower()
+    return any(kw.lower() in title_lower for kw in TARGET_JOBS)
+
+
 def _parse_job_rows(soup: BeautifulSoup) -> list[dict]:
     """페이지에서 채용공고 행들을 파싱한다."""
     postings = []
@@ -160,13 +166,18 @@ def crawl_jobs() -> list[JobPosting]:
         logger.info("=== '%s' 키워드 검색 시작 ===", keyword)
         raw_items = _crawl_keyword(keyword)
 
+        skipped = 0
         new_in_keyword = 0
         for item in raw_items:
             if item["job_id"] in seen_ids:
                 continue
             seen_ids.add(item["job_id"])
-            new_in_keyword += 1
 
+            if not _title_matches_any_keyword(item["title"]):
+                skipped += 1
+                continue
+
+            new_in_keyword += 1
             time.sleep(REQUEST_DELAY)
             description, tags = _fetch_detail(item["url"])
 
@@ -182,7 +193,7 @@ def crawl_jobs() -> list[JobPosting]:
                 tags=tags,
             ))
 
-        logger.info("'%s' 검색 완료: 신규 %d개 (중복 제외 후)", keyword, new_in_keyword)
+        logger.info("'%s' 검색 완료: 신규 %d개 (제목 불일치 %d개 제외)", keyword, new_in_keyword, skipped)
         time.sleep(REQUEST_DELAY)
 
     logger.info("총 %d개 공고 수집 완료", len(all_postings))
