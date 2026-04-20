@@ -1,12 +1,10 @@
+import io
 import logging
 import os
 import schedule
 import sys
 import time
 from dotenv import load_dotenv
-
-sys.stdout.reconfigure(encoding="utf-8")
-sys.stderr.reconfigure(encoding="utf-8")
 
 from config import SCHEDULE_INTERVAL_HOURS, USE_AI_FILTER, LOG_ONLY
 from crawler import crawl_jobs
@@ -18,6 +16,11 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[
+        logging.StreamHandler(
+            io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", line_buffering=True)
+        )
+    ],
 )
 logger = logging.getLogger(__name__)
 
