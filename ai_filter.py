@@ -2,7 +2,12 @@ import logging
 import os
 from google import genai
 from google.genai import types
+from google.genai import errors as genai_errors
 from crawler import JobPosting
+
+
+class QuotaExceeded(Exception):
+    """Gemini API 쿼터(429 RESOURCE_EXHAUSTED) 초과 시 호출자가 전체 배치를 중단하도록 알리는 예외."""
 from config import (
     TARGET_JOBS,
     CAREER_MIN_YEARS,
@@ -76,7 +81,8 @@ def check_excluded(job: JobPosting) -> tuple[bool, str]:
 
 def is_job_matching(job: JobPosting) -> tuple[bool | None, str]:
     """Gemini API로 공고가 조건에 맞는지 판단한다.
-    (True/False, reason) 반환. API 오류 시 (None, 오류메시지) — 호출자는 DB 기록/알림을 건너뛰어 다음 사이클에 재시도하도록 함."""
+    (True/False, reason) 반환. 일반 API 오류 시 (None, 오류메시지) — 호출자는 DB 기록/알림을 건너뛰어 다음 사이클에 재시도하도록 함.
+    429 쿼터 초과 시 QuotaExceeded 예외를 올려 현재 배치를 즉시 중단시킨다."""
     passed, reason = check_excluded(job)
     if not passed:
         return False, reason
@@ -101,6 +107,12 @@ def is_job_matching(job: JobPosting) -> tuple[bool | None, str]:
 
         return matched, reason
 
+    except genai_errors.APIError as e:
+        if getattr(e, "code", None) == 429:
+            logger.warning("Gemini 쿼터 초과 [%s]: %s", job.job_id, getattr(e, "message", e))
+            raise QuotaExceeded(str(e)) from e
+        logger.error("Gemini API 오류 [%s]: %s", job.job_id, e)
+        return None, f"API 오류: {e}"
     except Exception as e:
         logger.error("Gemini API 오류 [%s]: %s", job.job_id, e)
         return None, f"API 오류: {e}"

@@ -6,10 +6,25 @@ import sys
 import time
 from dotenv import load_dotenv
 
-from config import SCHEDULE_INTERVAL_HOURS, USE_AI_FILTER, LOG_ONLY, MAX_NOTIFICATIONS_PER_RUN, NOTIFY_UNMATCHED
+from config import (
+    SCHEDULE_INTERVAL_HOURS,
+    FILTER_INTERVAL_MINUTES,
+    FILTER_BATCH_SIZE,
+    USE_AI_FILTER,
+    LOG_ONLY,
+    MAX_NOTIFICATIONS_PER_RUN,
+    NOTIFY_UNMATCHED,
+)
 from crawler import crawl_jobs
-from database import init_db, is_seen, mark_seen, mark_notified, get_stats
-from ai_filter import is_job_matching, check_excluded
+from database import (
+    init_db,
+    save_crawled,
+    get_unfiltered,
+    mark_filtered,
+    mark_notified,
+    get_stats,
+)
+from ai_filter import is_job_matching, check_excluded, QuotaExceeded
 from notifier import send_job_notification
 
 logging.basicConfig(
@@ -24,33 +39,64 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# 429 감지 시 True로 설정 → 다음 filter_once 1회 건너뛰기
+_skip_next_filter: bool = False
 
-def run_once() -> None:
-    """크롤링 → AI 필터 → Slack 알림 한 사이클 실행."""
-    logger.info("=== 채용공고 수집 시작 ===")
 
+def crawl_once() -> None:
+    """크롤링만 수행하고 DB에 필터 대기 상태로 적재한다."""
+    logger.info("=== 크롤링 시작 ===")
     jobs = crawl_jobs()
+
     new_count = 0
+    for job in jobs:
+        if save_crawled(job):
+            new_count += 1
+
+    stats = get_stats()
+    logger.info(
+        "=== 크롤링 완료 | 신규: %d개 | 누적 총계: %s ===",
+        new_count,
+        stats,
+    )
+
+
+def filter_once() -> None:
+    """필터 대기 공고 중 FILTER_BATCH_SIZE개를 AI 판단 + 알림 처리한다.
+    직전 사이클에 429 쿼터 초과가 감지되면 이번 실행은 건너뛴다."""
+    global _skip_next_filter
+    if _skip_next_filter:
+        logger.warning("직전 사이클 쿼터 초과(429) 감지 → 이번 필터 건너뜀")
+        _skip_next_filter = False
+        return
+
+    jobs = get_unfiltered(FILTER_BATCH_SIZE)
+    if not jobs:
+        logger.debug("필터 대기 공고 없음")
+        return
+
+    logger.info("=== 필터링 시작 (%d개) ===", len(jobs))
     matched_count = 0
-    notification_count = 0
     api_error_count = 0
+    notification_count = 0
 
     for job in jobs:
-        if is_seen(job.job_id):
-            continue
-        new_count += 1
+        try:
+            if USE_AI_FILTER:
+                matched, reason = is_job_matching(job)
+            else:
+                matched, reason = check_excluded(job)
+        except QuotaExceeded as e:
+            _skip_next_filter = True
+            logger.warning("쿼터 초과로 배치 중단, 다음 필터 사이클 건너뜀: %s", e)
+            break
 
-        if USE_AI_FILTER:
-            matched, reason = is_job_matching(job)
-        else:
-            matched, reason = check_excluded(job)
-
-        # API 오류: DB 기록/알림 모두 skip → 다음 사이클 재시도
+        # 일반 API 오류: 필터 완료로 기록하지 않고 다음 사이클에 재시도
         if matched is None:
             api_error_count += 1
             continue
 
-        mark_seen(job.job_id, job.title, job.company, job.url, is_matched=matched)
+        mark_filtered(job.job_id, matched)
 
         if matched:
             matched_count += 1
@@ -67,8 +113,7 @@ def run_once() -> None:
 
     stats = get_stats()
     logger.info(
-        "=== 완료 | 신규: %d개, 조건 부합: %d개, API 오류: %d개 | 누적 총계: %s ===",
-        new_count,
+        "=== 필터링 완료 | 매칭: %d개, API 오류: %d개 | 누적: %s ===",
         matched_count,
         api_error_count,
         stats,
@@ -87,16 +132,22 @@ def main() -> None:
 
     init_db()
 
-    # 첫 실행은 즉시
-    run_once()
+    # 시작 시 크롤링 1회 → 바로 첫 필터 실행
+    crawl_once()
+    filter_once()
 
-    # 이후 N시간마다 반복
-    schedule.every(SCHEDULE_INTERVAL_HOURS).hours.do(run_once)
-    logger.info("스케줄 등록: 매 %d시간마다 실행", SCHEDULE_INTERVAL_HOURS)
+    schedule.every(SCHEDULE_INTERVAL_HOURS).hours.do(crawl_once)
+    schedule.every(FILTER_INTERVAL_MINUTES).minutes.do(filter_once)
+    logger.info(
+        "스케줄 등록: 크롤링 매 %d시간, 필터 매 %d분 (배치 %d개)",
+        SCHEDULE_INTERVAL_HOURS,
+        FILTER_INTERVAL_MINUTES,
+        FILTER_BATCH_SIZE,
+    )
 
     while True:
         schedule.run_pending()
-        time.sleep(60)
+        time.sleep(30)
 
 
 if __name__ == "__main__":
