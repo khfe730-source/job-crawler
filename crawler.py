@@ -130,7 +130,7 @@ def _crawl_keyword(keyword: str) -> list[dict]:
 
             resp.raise_for_status()
             if not resp.encoding or resp.encoding.lower() == "iso-8859-1":
-            resp.encoding = resp.apparent_encoding
+                resp.encoding = resp.apparent_encoding
             soup = BeautifulSoup(resp.text, "lxml")
 
             page_items = _parse_job_rows(soup)
