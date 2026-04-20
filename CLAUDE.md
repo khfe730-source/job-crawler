@@ -90,7 +90,15 @@ python main.py
 
 ## 작업 완료 후 Git 커밋 규칙
 
-작업이 끝날 때마다 반드시 git commit을 생성할 것:
+작업이 끝날 때마다 반드시 아래 순서로 진행할 것:
+
+1. 가상환경에서 import 확인으로 컴파일 오류 검사:
+   ```bash
+   source venv/Scripts/activate && python -c "import main"
+   ```
+2. 오류 없으면 커밋 진행. 오류 있으면 수정 후 재확인.
+
+커밋 명령:
 
 ```bash
 git add <변경된 파일>
