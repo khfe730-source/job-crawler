@@ -32,6 +32,8 @@ def run_once() -> None:
     jobs = crawl_jobs()
     new_count = 0
     matched_count = 0
+    notification_count = 0
+    api_error_count = 0
 
     for job in jobs:
         if is_seen(job.job_id):
@@ -43,23 +45,32 @@ def run_once() -> None:
         else:
             matched, reason = check_excluded(job)
 
+        # API 오류: DB 기록/알림 모두 skip → 다음 사이클 재시도
+        if matched is None:
+            api_error_count += 1
+            continue
+
         mark_seen(job.job_id, job.title, job.company, job.url, is_matched=matched)
 
         if matched:
             matched_count += 1
             if send_job_notification(job, reason, matched=True):
                 mark_notified(job.job_id)
-            if MAX_NOTIFICATIONS_PER_RUN and matched_count >= MAX_NOTIFICATIONS_PER_RUN:
-                logger.info("최대 알림 한도 도달 (%d개), 나머지는 다음 사이클에 처리", MAX_NOTIFICATIONS_PER_RUN)
-                break
+            notification_count += 1
         elif NOTIFY_UNMATCHED:
             send_job_notification(job, reason, matched=False)
+            notification_count += 1
+
+        if MAX_NOTIFICATIONS_PER_RUN and notification_count >= MAX_NOTIFICATIONS_PER_RUN:
+            logger.info("최대 알림 한도 도달 (%d개), 나머지는 다음 사이클에 처리", MAX_NOTIFICATIONS_PER_RUN)
+            break
 
     stats = get_stats()
     logger.info(
-        "=== 완료 | 신규: %d개, 조건 부합: %d개 | 누적 총계: %s ===",
+        "=== 완료 | 신규: %d개, 조건 부합: %d개, API 오류: %d개 | 누적 총계: %s ===",
         new_count,
         matched_count,
+        api_error_count,
         stats,
     )
 

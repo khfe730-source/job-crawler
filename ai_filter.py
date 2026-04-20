@@ -74,8 +74,9 @@ def check_excluded(job: JobPosting) -> tuple[bool, str]:
     return True, ""
 
 
-def is_job_matching(job: JobPosting) -> tuple[bool, str]:
-    """Gemini API로 공고가 조건에 맞는지 판단한다. (matched, reason) 반환"""
+def is_job_matching(job: JobPosting) -> tuple[bool | None, str]:
+    """Gemini API로 공고가 조건에 맞는지 판단한다.
+    (True/False, reason) 반환. API 오류 시 (None, 오류메시지) — 호출자는 DB 기록/알림을 건너뛰어 다음 사이클에 재시도하도록 함."""
     passed, reason = check_excluded(job)
     if not passed:
         return False, reason
@@ -102,4 +103,4 @@ def is_job_matching(job: JobPosting) -> tuple[bool, str]:
 
     except Exception as e:
         logger.error("Gemini API 오류 [%s]: %s", job.job_id, e)
-        return False, f"API 오류: {e}"
+        return None, f"API 오류: {e}"
