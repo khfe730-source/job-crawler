@@ -58,7 +58,7 @@ python main.py
 
 ## gamejob.co.kr 파싱 특이사항
 
-- 인코딩: EUC-KR (`resp.encoding = "euc-kr"` 명시 필요)
+- 인코딩: 서버 Content-Type charset을 우선 사용, charset 없으면 `resp.apparent_encoding`으로 자동 감지 (구 ASP 페이지는 EUC-KR, 신규 페이지는 UTF-8)
 - 공고 ID: `<a href="/Recruit/GI_Read/View?GI_No=N">` URL의 `GI_No` 파라미터
 - 목록 파싱: `GI_No=` 포함 `<a>` 태그 기준으로 부모 `<tr>` 셀 추출 (클래스 의존 없음)
 - 상세 본문: `div.view_cont` → `div.recruit_view` → `div#contents` 순으로 fallback

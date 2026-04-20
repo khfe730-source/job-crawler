@@ -84,7 +84,8 @@ def _fetch_detail(url: str) -> tuple[str, list[str]]:
     try:
         resp = requests.get(url, headers=HEADERS, timeout=15)
         resp.raise_for_status()
-        resp.encoding = "euc-kr"
+        if not resp.encoding or resp.encoding.lower() == "iso-8859-1":
+            resp.encoding = resp.apparent_encoding
         soup = BeautifulSoup(resp.text, "lxml")
 
         desc_tag = (
@@ -128,7 +129,8 @@ def _crawl_keyword(keyword: str) -> list[dict]:
                 )
 
             resp.raise_for_status()
-            resp.encoding = "euc-kr"
+            if not resp.encoding or resp.encoding.lower() == "iso-8859-1":
+            resp.encoding = resp.apparent_encoding
             soup = BeautifulSoup(resp.text, "lxml")
 
             page_items = _parse_job_rows(soup)
