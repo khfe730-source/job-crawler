@@ -35,6 +35,11 @@ EXCLUDED_KEYWORDS = [
     "중국어 필수",
 ]
 
+# AI 필터 활성화 여부
+# False: EXCLUDED_KEYWORDS만 검사 후 검색 결과를 모두 Slack 발송 (AI 호출 없음)
+# True: AI가 조건 부합 여부를 판단해 일치하는 공고만 발송
+USE_AI_FILTER = True
+
 # AI 판단 시 추가 조건 (자유 형식)
 ADDITIONAL_CONDITIONS = """
 - 재택근무 또는 하이브리드 근무 가능한 회사 선호

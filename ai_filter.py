@@ -64,13 +64,20 @@ RESULT: YES 또는 RESULT: NO
 REASON: 판단 이유 (한 문장)"""
 
 
-def is_job_matching(job: JobPosting) -> tuple[bool, str]:
-    """Anthropic API로 공고가 조건에 맞는지 판단한다. (matched, reason) 반환"""
-    # 제외 키워드 사전 검사 (API 호출 절약)
+def check_excluded(job: JobPosting) -> tuple[bool, str]:
+    """EXCLUDED_KEYWORDS 사전 검사. 제외 대상이면 (False, 이유) 반환."""
     full_text = f"{job.title} {job.description} {' '.join(job.tags)}"
     for kw in EXCLUDED_KEYWORDS:
         if kw in full_text:
             return False, f"제외 키워드 포함: {kw}"
+    return True, ""
+
+
+def is_job_matching(job: JobPosting) -> tuple[bool, str]:
+    """Anthropic API로 공고가 조건에 맞는지 판단한다. (matched, reason) 반환"""
+    passed, reason = check_excluded(job)
+    if not passed:
+        return False, reason
 
     prompt = _build_prompt(job)
 

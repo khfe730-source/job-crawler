@@ -4,10 +4,10 @@ import schedule
 import time
 from dotenv import load_dotenv
 
-from config import SCHEDULE_INTERVAL_HOURS
+from config import SCHEDULE_INTERVAL_HOURS, USE_AI_FILTER
 from crawler import crawl_jobs
 from database import init_db, is_seen, mark_seen, mark_notified, get_stats
-from ai_filter import is_job_matching
+from ai_filter import is_job_matching, check_excluded
 from notifier import send_job_notification
 
 logging.basicConfig(
@@ -31,7 +31,11 @@ def run_once() -> None:
             continue
         new_count += 1
 
-        matched, reason = is_job_matching(job)
+        if USE_AI_FILTER:
+            matched, reason = is_job_matching(job)
+        else:
+            matched, reason = check_excluded(job)
+
         mark_seen(job.job_id, job.title, job.company, job.url, is_matched=matched)
 
         if matched:
