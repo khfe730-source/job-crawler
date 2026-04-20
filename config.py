@@ -49,9 +49,12 @@ ADDITIONAL_CONDITIONS = """
 - 근무지 판교, 강남 선호
 """
 
+# AI 조건 불일치 공고도 Slack/로그로 출력 (AI 판단 검증용)
+NOTIFY_UNMATCHED: bool = False
+
 # 1회 실행당 최대 알림 발송 수 (None = 제한 없음)
 # 한도 초과 공고는 DB에 기록하지 않으므로 다음 사이클에 처리됨
-MAX_NOTIFICATIONS_PER_RUN: int | None = None
+MAX_NOTIFICATIONS_PER_RUN: int | None = 3
 
 # 크롤링 설정
 GAMEJOB_BASE_URL = "https://www.gamejob.co.kr"

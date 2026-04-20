@@ -3,7 +3,7 @@ import os
 from slack_sdk.webhook import WebhookClient
 from slack_sdk.errors import SlackApiError
 from crawler import JobPosting
-from config import PREFERRED_COMPANIES, LOG_ONLY
+from config import PREFERRED_COMPANIES, LOG_ONLY, NOTIFY_UNMATCHED
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +24,10 @@ def _is_preferred(company: str) -> bool:
     return any(pref in company for pref in PREFERRED_COMPANIES)
 
 
-def _build_blocks(job: JobPosting, reason: str) -> list[dict]:
+def _build_blocks(job: JobPosting, reason: str, matched: bool = True) -> list[dict]:
     star = " ⭐" if _is_preferred(job.company) else ""
-    header_text = f"*[새 채용공고]{star} {job.company}*"
+    label = "[새 채용공고]" if matched else "[조건 불일치]"
+    header_text = f"*{label}{star} {job.company}*"
 
     fields = [
         {"type": "mrkdwn", "text": f"*직무*\n{job.title}"},
@@ -36,12 +37,12 @@ def _build_blocks(job: JobPosting, reason: str) -> list[dict]:
     ]
 
     blocks = [
-        {"type": "header", "text": {"type": "plain_text", "text": "🎮 GameJob 채용 알림"}},
+        {"type": "header", "text": {"type": "plain_text", "text": "🎮 GameJob 채용 알림" if matched else "❌ GameJob 조건 불일치"}},
         {"type": "section", "text": {"type": "mrkdwn", "text": header_text}},
         {"type": "section", "fields": fields},
         {
             "type": "section",
-            "text": {"type": "mrkdwn", "text": f"*AI 판단 이유*\n{reason}"},
+            "text": {"type": "mrkdwn", "text": f"*{'AI 판단 이유' if matched else 'AI 불일치 이유'}*\n{reason}"},
         },
         {
             "type": "actions",
@@ -60,27 +61,29 @@ def _build_blocks(job: JobPosting, reason: str) -> list[dict]:
     return blocks
 
 
-def _log_notification(job: JobPosting, reason: str) -> None:
+def _log_notification(job: JobPosting, reason: str, matched: bool = True) -> None:
     star = " ⭐" if _is_preferred(job.company) else ""
+    label = "[공고 매칭]" if matched else "[조건 불일치]"
     logger.info(
-        "[공고 매칭]%s %s | %s | %s | %s | %s",
-        star, job.company, job.title, job.career, job.deadline, job.url,
+        "%s%s %s | %s | %s | %s | %s",
+        label, star, job.company, job.title, job.career, job.deadline, job.url,
     )
     if reason:
         logger.info("  └ 이유: %s", reason)
 
 
-def send_job_notification(job: JobPosting, reason: str) -> bool:
+def send_job_notification(job: JobPosting, reason: str, matched: bool = True) -> bool:
     """채용공고 알림을 발송한다. LOG_ONLY=True면 로그로만 출력. 성공 여부 반환."""
     if LOG_ONLY:
-        _log_notification(job, reason)
+        _log_notification(job, reason, matched)
         return True
 
     try:
         webhook = _get_webhook()
-        blocks = _build_blocks(job, reason)
+        blocks = _build_blocks(job, reason, matched)
+        label = "[GameJob 알림]" if matched else "[GameJob 불일치]"
         response = webhook.send(
-            text=f"[GameJob 알림] {job.company} - {job.title}",
+            text=f"{label} {job.company} - {job.title}",
             blocks=blocks,
         )
         if response.status_code != 200:

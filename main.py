@@ -6,7 +6,7 @@ import sys
 import time
 from dotenv import load_dotenv
 
-from config import SCHEDULE_INTERVAL_HOURS, USE_AI_FILTER, LOG_ONLY, MAX_NOTIFICATIONS_PER_RUN
+from config import SCHEDULE_INTERVAL_HOURS, USE_AI_FILTER, LOG_ONLY, MAX_NOTIFICATIONS_PER_RUN, NOTIFY_UNMATCHED
 from crawler import crawl_jobs
 from database import init_db, is_seen, mark_seen, mark_notified, get_stats
 from ai_filter import is_job_matching, check_excluded
@@ -47,11 +47,13 @@ def run_once() -> None:
 
         if matched:
             matched_count += 1
-            if send_job_notification(job, reason):
+            if send_job_notification(job, reason, matched=True):
                 mark_notified(job.job_id)
             if MAX_NOTIFICATIONS_PER_RUN and matched_count >= MAX_NOTIFICATIONS_PER_RUN:
                 logger.info("최대 알림 한도 도달 (%d개), 나머지는 다음 사이클에 처리", MAX_NOTIFICATIONS_PER_RUN)
                 break
+        elif NOTIFY_UNMATCHED:
+            send_job_notification(job, reason, matched=False)
 
     stats = get_stats()
     logger.info(
