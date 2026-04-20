@@ -90,8 +90,7 @@ def _fetch_detail(url: str) -> tuple[str, list[str]]:
     try:
         resp = requests.get(url, headers=HEADERS, timeout=15)
         resp.raise_for_status()
-        if not resp.encoding or resp.encoding.lower() == "iso-8859-1":
-            resp.encoding = resp.apparent_encoding
+        resp.encoding = "utf-8"
         soup = BeautifulSoup(resp.text, "lxml")
 
         desc_tag = (
@@ -110,33 +109,32 @@ def _fetch_detail(url: str) -> tuple[str, list[str]]:
 
 
 def _crawl_keyword(keyword: str) -> list[dict]:
-    """단일 키워드로 gamejob 검색 결과를 수집한다. 세션으로 페이지네이션 유지."""
-    session = requests.Session()
-    session.headers.update(HEADERS)
+    """단일 키워드로 gamejob 검색 결과를 수집한다. 페이지마다 검색 파라미터 포함 요청."""
     items: list[dict] = []
 
     for page in range(1, CRAWL_PAGES + 1):
         try:
             if page == 1:
-                resp = session.get(
-                    GAMEJOB_SEARCH_URL,
-                    params={
-                        "menucode": "searchtot",
-                        "searchtype": "all",
-                        "searchstring": keyword,
-                    },
-                    timeout=15,
-                )
+                url = GAMEJOB_SEARCH_URL
+                req_headers = HEADERS
             else:
-                resp = session.get(
-                    GAMEJOB_PAGE_URL,
-                    params={"Page": page},
-                    timeout=15,
-                )
+                url = GAMEJOB_PAGE_URL
+                req_headers = {**HEADERS, "X-Requested-With": "XMLHttpRequest"}
+
+            resp = requests.get(
+                url,
+                params={
+                    "menucode": "searchtot",
+                    "searchtype": "all",
+                    "searchstring": keyword,
+                    "Page": page,
+                },
+                headers=req_headers,
+                timeout=15,
+            )
 
             resp.raise_for_status()
-            if not resp.encoding or resp.encoding.lower() == "iso-8859-1":
-                resp.encoding = resp.apparent_encoding
+            resp.encoding = "utf-8"
             soup = BeautifulSoup(resp.text, "lxml")
 
             page_items = _parse_job_rows(soup)
