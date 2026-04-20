@@ -53,16 +53,23 @@ python main.py
 ## gamejob.co.kr 파싱 특이사항
 
 - 인코딩: EUC-KR (`resp.encoding = "euc-kr"` 명시 필요)
-- 공고 ID: URL 쿼리스트링의 `GIJP_No` 또는 `GI_No` 파라미터
-- 목록 셀렉터: `table.list_tb tbody tr` / 상세 본문: `div.view_cont`
-- 사이트 구조 변경 시 `crawler.py`의 CSS 셀렉터 수정
+- 공고 ID: `<a href="/Recruit/GI_Read/View?GI_No=N">` URL의 `GI_No` 파라미터
+- 목록 파싱: `GI_No=` 포함 `<a>` 태그 기준으로 부모 `<tr>` 셀 추출 (클래스 의존 없음)
+- 상세 본문: `div.view_cont` → `div.recruit_view` → `div#contents` 순으로 fallback
+- 페이지네이션: 1페이지는 검색 URL 직접, 2페이지~는 세션 유지 후 `/recruit/_GI_Job_List?Page=N`
+
+## 크롤링 방식
+
+- `TARGET_JOBS` 각 키워드를 gamejob 검색 URL(`/Recruit/joblist?menucode=searchtot&searchtype=all&searchstring=[keyword]`)로 개별 검색
+- `requests.Session`으로 세션 유지 → 이후 페이지는 `/recruit/_GI_Job_List?Page=N` AJAX 엔드포인트 사용
+- 키워드별 결과를 `job_id`로 중복 제거 후 합산
+- 공고 HTML 파싱: `<a href="/Recruit/GI_Read/View?GI_No=N">` 링크 기준, 부모 `<tr>` 셀에서 회사명/경력 추출
 
 ## AI 필터 동작 방식
 
-1. **제목 사전 필터** (`PREFILTER_BY_TITLE=True`): 목록 페이지 제목에 `TARGET_JOBS` 키워드가 없으면 상세 페이지 미요청 + AI 미호출 (HTTP 요청 & 토큰 절약)
-2. `EXCLUDED_KEYWORDS`는 API 호출 없이 사전 검사로 제외 (비용 절감)
-3. 통과한 공고만 claude-haiku API 호출 → `RESULT: YES/NO` + `REASON:` 파싱
-4. AI 모델 변경 시 `ai_filter.py`의 `model` 파라미터 수정
+1. `EXCLUDED_KEYWORDS`는 API 호출 없이 사전 검사로 제외 (비용 절감)
+2. 통과한 공고만 claude-haiku API 호출 → `RESULT: YES/NO` + `REASON:` 파싱
+3. AI 모델 변경 시 `ai_filter.py`의 `model` 파라미터 수정
 
 ## 작업 완료 후 Git 커밋 규칙
 

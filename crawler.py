@@ -6,14 +6,15 @@ from dataclasses import dataclass, field
 from typing import Optional
 from config import (
     GAMEJOB_BASE_URL,
-    GAMEJOB_LIST_URL,
     CRAWL_PAGES,
     REQUEST_DELAY,
     TARGET_JOBS,
-    PREFILTER_BY_TITLE,
 )
 
 logger = logging.getLogger(__name__)
+
+GAMEJOB_SEARCH_URL = f"{GAMEJOB_BASE_URL}/Recruit/joblist"
+GAMEJOB_PAGE_URL = f"{GAMEJOB_BASE_URL}/recruit/_GI_Job_List"
 
 HEADERS = {
     "User-Agent": (
@@ -37,72 +38,41 @@ class JobPosting:
     url: str
     description: str = ""
     tags: list[str] = field(default_factory=list)
-    pre_filtered: bool = False  # 제목 사전 필터에서 제외됨 (상세 미조회)
 
 
-def _passes_title_filter(title: str) -> bool:
-    """TARGET_JOBS의 키워드 단어가 하나라도 제목에 포함되면 True."""
-    for kw in TARGET_JOBS:
-        if kw in title:
-            return True
-        for word in kw.split():
-            if len(word) >= 2 and word in title:
-                return True
-    return False
-
-
-def _fetch_page(page: int) -> Optional[BeautifulSoup]:
-    """주어진 페이지 번호의 채용공고 목록을 가져온다."""
-    params = {
-        "schWork": "",
-        "schCate": "",
-        "schKeyword": " ".join(TARGET_JOBS[:3]),  # 주요 키워드로 검색
-        "Page_No": page,
-    }
-    try:
-        resp = requests.get(GAMEJOB_LIST_URL, params=params, headers=HEADERS, timeout=15)
-        resp.raise_for_status()
-        resp.encoding = "euc-kr"
-        return BeautifulSoup(resp.text, "lxml")
-    except requests.RequestException as e:
-        logger.error("페이지 %d 요청 실패: %s", page, e)
-        return None
-
-
-def _parse_list_page(soup: BeautifulSoup) -> list[dict]:
-    """목록 페이지에서 공고 기본 정보를 파싱한다."""
+def _parse_job_rows(soup: BeautifulSoup) -> list[dict]:
+    """페이지에서 채용공고 행들을 파싱한다."""
     postings = []
+    seen_in_page: set[str] = set()
 
-    rows = soup.select("table.list_tb tbody tr")
-    for row in rows:
-        cells = row.select("td")
-        if len(cells) < 5:
+    for a_tag in soup.find_all("a", href=lambda h: h and "GI_No=" in h):
+        href = a_tag.get("href", "")
+        job_id = href.split("GI_No=")[-1].split("&")[0]
+        if not job_id or job_id in seen_in_page:
             continue
-
-        title_tag = row.select_one("td.list_title a")
-        if not title_tag:
-            continue
-
-        href = title_tag.get("href", "")
-        # job_id: URL의 쿼리스트링에서 추출
-        job_id = ""
-        if "GIJP_No=" in href:
-            job_id = href.split("GIJP_No=")[-1].split("&")[0]
-        elif "GI_No=" in href:
-            job_id = href.split("GI_No=")[-1].split("&")[0]
-
-        if not job_id:
-            continue
+        seen_in_page.add(job_id)
 
         full_url = href if href.startswith("http") else GAMEJOB_BASE_URL + href
+        title = a_tag.get_text(strip=True)
+        if not title:
+            continue
+
+        row = a_tag.find_parent("tr")
+        if not row:
+            continue
+
+        cells = row.select("td")
+        company = cells[0].get_text(strip=True) if cells else ""
+        career_loc = cells[2].get_text(strip=True) if len(cells) > 2 else ""
+        deadline = cells[-1].get_text(strip=True) if cells else ""
 
         postings.append({
             "job_id": job_id,
-            "title": title_tag.get_text(strip=True),
-            "company": cells[1].get_text(strip=True) if len(cells) > 1 else "",
-            "career": cells[2].get_text(strip=True) if len(cells) > 2 else "",
-            "location": cells[3].get_text(strip=True) if len(cells) > 3 else "",
-            "deadline": cells[4].get_text(strip=True) if len(cells) > 4 else "",
+            "title": title,
+            "company": company,
+            "career": career_loc,
+            "location": "",
+            "deadline": deadline,
             "url": full_url,
         })
 
@@ -117,7 +87,11 @@ def _fetch_detail(url: str) -> tuple[str, list[str]]:
         resp.encoding = "euc-kr"
         soup = BeautifulSoup(resp.text, "lxml")
 
-        desc_tag = soup.select_one("div.view_cont") or soup.select_one("div#contents")
+        desc_tag = (
+            soup.select_one("div.view_cont")
+            or soup.select_one("div.recruit_view")
+            or soup.select_one("div#contents")
+        )
         description = desc_tag.get_text(separator="\n", strip=True)[:3000] if desc_tag else ""
 
         tags = [t.get_text(strip=True) for t in soup.select("div.tag_area a")]
@@ -128,41 +102,68 @@ def _fetch_detail(url: str) -> tuple[str, list[str]]:
         return "", []
 
 
-def crawl_jobs() -> list[JobPosting]:
-    """gamejob.co.kr에서 채용공고를 크롤링해 반환한다."""
-    all_postings: list[JobPosting] = []
-    seen_ids: set[str] = set()
+def _crawl_keyword(keyword: str) -> list[dict]:
+    """단일 키워드로 gamejob 검색 결과를 수집한다. 세션으로 페이지네이션 유지."""
+    session = requests.Session()
+    session.headers.update(HEADERS)
+    items: list[dict] = []
 
     for page in range(1, CRAWL_PAGES + 1):
-        logger.info("페이지 %d/%d 크롤링 중...", page, CRAWL_PAGES)
-        soup = _fetch_page(page)
-        if not soup:
-            continue
+        try:
+            if page == 1:
+                resp = session.get(
+                    GAMEJOB_SEARCH_URL,
+                    params={
+                        "menucode": "searchtot",
+                        "searchtype": "all",
+                        "searchstring": keyword,
+                    },
+                    timeout=15,
+                )
+            else:
+                resp = session.get(
+                    GAMEJOB_PAGE_URL,
+                    params={"Page": page},
+                    timeout=15,
+                )
 
-        raw_list = _parse_list_page(soup)
-        if not raw_list:
-            logger.info("페이지 %d에서 공고를 찾지 못했습니다.", page)
+            resp.raise_for_status()
+            resp.encoding = "euc-kr"
+            soup = BeautifulSoup(resp.text, "lxml")
+
+            page_items = _parse_job_rows(soup)
+            if not page_items:
+                logger.info("'%s' 검색: 페이지 %d 공고 없음, 중단", keyword, page)
+                break
+
+            items.extend(page_items)
+            logger.info("'%s' 검색: 페이지 %d에서 %d개 수집", keyword, page, len(page_items))
+
+            if page < CRAWL_PAGES:
+                time.sleep(REQUEST_DELAY)
+
+        except requests.RequestException as e:
+            logger.error("'%s' 검색 페이지 %d 요청 실패: %s", keyword, page, e)
             break
 
-        pre_filtered_in_page = 0
-        for item in raw_list:
+    return items
+
+
+def crawl_jobs() -> list[JobPosting]:
+    """TARGET_JOBS 키워드별로 gamejob을 검색해 채용공고를 반환한다."""
+    seen_ids: set[str] = set()
+    all_postings: list[JobPosting] = []
+
+    for keyword in TARGET_JOBS:
+        logger.info("=== '%s' 키워드 검색 시작 ===", keyword)
+        raw_items = _crawl_keyword(keyword)
+
+        new_in_keyword = 0
+        for item in raw_items:
             if item["job_id"] in seen_ids:
                 continue
             seen_ids.add(item["job_id"])
-
-            if PREFILTER_BY_TITLE and not _passes_title_filter(item["title"]):
-                pre_filtered_in_page += 1
-                all_postings.append(JobPosting(
-                    job_id=item["job_id"],
-                    title=item["title"],
-                    company=item["company"],
-                    career=item["career"],
-                    location=item["location"],
-                    deadline=item["deadline"],
-                    url=item["url"],
-                    pre_filtered=True,
-                ))
-                continue
+            new_in_keyword += 1
 
             time.sleep(REQUEST_DELAY)
             description, tags = _fetch_detail(item["url"])
@@ -179,10 +180,8 @@ def crawl_jobs() -> list[JobPosting]:
                 tags=tags,
             ))
 
-        if pre_filtered_in_page:
-            logger.info("페이지 %d: 제목 사전 필터로 %d개 제외", page, pre_filtered_in_page)
-
+        logger.info("'%s' 검색 완료: 신규 %d개 (중복 제외 후)", keyword, new_in_keyword)
         time.sleep(REQUEST_DELAY)
 
-    logger.info("총 %d개 공고 크롤링 완료", len(all_postings))
+    logger.info("총 %d개 공고 수집 완료", len(all_postings))
     return all_postings
