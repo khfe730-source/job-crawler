@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 개발 환경
+
+- **Python 3.14.4** 사용 — 코드 작성 시 이 버전의 문법과 표준 라이브러리 기준으로 작성할 것
+- 3.14에서 추가된 기능(타입 힌트 개선, 새 표준 라이브러리 등) 적극 활용 가능
+- 하위 버전 호환성 고려 불필요
+
 ## 프로젝트 개요
 
 gamejob.co.kr 채용공고를 주기적으로 크롤링하여 Anthropic AI로 조건 부합 여부를 판단하고, 조건에 맞는 공고를 Slack으로 알림하는 봇.
