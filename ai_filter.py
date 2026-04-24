@@ -10,9 +10,6 @@ class QuotaExceeded(Exception):
     """Gemini API 쿼터(429 RESOURCE_EXHAUSTED) 초과 시 호출자가 전체 배치를 중단하도록 알리는 예외."""
 from config import (
     TARGET_JOBS,
-    CAREER_MIN_YEARS,
-    CAREER_MAX_YEARS,
-    ACCEPT_NEWCOMER,
     PREFERRED_COMPANIES,
     EXCLUDED_KEYWORDS,
     ADDITIONAL_CONDITIONS,
@@ -34,7 +31,6 @@ def _get_client() -> genai.Client:
 def _build_prompt(job: JobPosting) -> str:
     conditions = f"""
 희망 직무: {', '.join(TARGET_JOBS)}
-경력 조건: {CAREER_MIN_YEARS}년 이상 ~ {CAREER_MAX_YEARS}년 이하 (신입 허용: {'예' if ACCEPT_NEWCOMER else '아니오'})
 선호 회사: {', '.join(PREFERRED_COMPANIES)}
 제외 키워드: {', '.join(EXCLUDED_KEYWORDS)}
 추가 조건:
@@ -62,9 +58,8 @@ def _build_prompt(job: JobPosting) -> str:
 
 판단 기준:
 1. 직무가 구직자의 희망 직무와 관련 있는가
-2. 경력 요건이 구직자 조건 범위 내인가
-3. 제외 키워드가 포함되어 있지 않은가
-4. 추가 조건을 고려했을 때 적합한가
+2. 제외 키워드가 포함되어 있지 않은가
+3. 추가 조건을 고려했을 때 적합한가
 
 반드시 아래 형식으로만 응답하세요:
 RESULT: YES 또는 RESULT: NO
@@ -97,7 +92,7 @@ def is_job_matching(job: JobPosting) -> tuple[bool | None, str]:
             config=types.GenerateContentConfig(max_output_tokens=200),
         )
         response_text = response.text.strip()
-        logger.debug("AI 응답 [%s]: %s", job.job_id, response_text)
+        logger.info("AI 응답 [%s]: %s", job.job_id, response_text)
 
         matched = "RESULT: YES" in response_text
         reason = ""
