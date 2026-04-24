@@ -1,8 +1,5 @@
 """Gemini API 독립 테스트 스크립트.
 
-메인 코드(config, crawler 등)와 완전히 분리되어 있으며,
-GEMINI_API_KEY만 있으면 바로 실행 가능.
-
 실행:
     source venv/Scripts/activate
     python tests/test_gemini.py
@@ -20,7 +17,8 @@ from google.genai import types
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
 
-MODEL = "gemini-2.0-flash-lite"
+sys.path.insert(0, str(ROOT))
+from config import GEMINI_MODEL as MODEL
 DEFAULT_PROMPT = "안녕하세요. 오늘 날씨를 한 문장으로 묘사해 주세요."
 
 

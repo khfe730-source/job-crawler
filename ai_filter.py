@@ -16,6 +16,7 @@ from config import (
     PREFERRED_COMPANIES,
     EXCLUDED_KEYWORDS,
     ADDITIONAL_CONDITIONS,
+    GEMINI_MODEL,
 )
 
 logger = logging.getLogger(__name__)
@@ -91,7 +92,7 @@ def is_job_matching(job: JobPosting) -> tuple[bool | None, str]:
 
     try:
         response = _get_client().models.generate_content(
-            model="gemini-2.0-flash-lite",
+            model=GEMINI_MODEL,
             contents=prompt,
             config=types.GenerateContentConfig(max_output_tokens=200),
         )
