@@ -40,15 +40,12 @@ def _build_prompt(job: JobPosting) -> str:
     posting = f"""
 공고 제목: {job.title}
 회사명: {job.company}
-경력 요건: {job.career}
-근무지: {job.location}
-마감일: {job.deadline}
 태그: {', '.join(job.tags)}
 공고 내용:
 {job.description[:2000]}
 """.strip()
 
-    return f"""아래 채용공고가 구직자의 조건에 부합하는지 판단해주세요.
+    return f"""아래 채용공고가 구직자의 조건에 부합하는지 판단하고, 공고에서 정보를 추출해주세요.
 
 [구직자 조건]
 {conditions}
@@ -63,7 +60,10 @@ def _build_prompt(job: JobPosting) -> str:
 
 반드시 아래 형식으로만 응답하세요:
 RESULT: YES 또는 RESULT: NO
-REASON: 판단 이유 (한 문장)"""
+REASON: 판단 이유 (한 문장)
+CAREER: 경력 요건 (공고 내용에서 추출. 없으면 정보 없음)
+LOCATION: 근무지 (공고 내용에서 추출. 없으면 정보 없음)
+DEADLINE: 마감일 (공고 내용에서 추출. 없으면 정보 없음)"""
 
 
 def check_excluded(job: JobPosting) -> tuple[bool, str]:
@@ -89,7 +89,7 @@ def is_job_matching(job: JobPosting) -> tuple[bool | None, str]:
         response = _get_client().models.generate_content(
             model=GEMINI_MODEL,
             contents=prompt,
-            config=types.GenerateContentConfig(max_output_tokens=200),
+            config=types.GenerateContentConfig(max_output_tokens=400),
         )
         response_text = response.text.strip()
         logger.info("AI 응답 [%s]: %s", job.job_id, response_text)
@@ -99,7 +99,12 @@ def is_job_matching(job: JobPosting) -> tuple[bool | None, str]:
         for line in response_text.splitlines():
             if line.startswith("REASON:"):
                 reason = line.replace("REASON:", "").strip()
-                break
+            elif line.startswith("CAREER:"):
+                job.career = line.replace("CAREER:", "").strip()
+            elif line.startswith("LOCATION:"):
+                job.location = line.replace("LOCATION:", "").strip()
+            elif line.startswith("DEADLINE:"):
+                job.deadline = line.replace("DEADLINE:", "").strip()
 
         return matched, reason
 

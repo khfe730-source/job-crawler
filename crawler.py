@@ -69,16 +69,14 @@ def _parse_job_rows(soup: BeautifulSoup) -> list[dict]:
 
         cells = row.select("td")
         company = cells[0].get_text(strip=True) if cells else ""
-        career_loc = cells[2].get_text(strip=True) if len(cells) > 2 else ""
-        deadline = cells[-1].get_text(strip=True) if cells else ""
 
         postings.append({
             "job_id": job_id,
             "title": title,
             "company": company,
-            "career": career_loc,
+            "career": "",
             "location": "",
-            "deadline": deadline,
+            "deadline": "",
             "url": full_url,
         })
 
