@@ -11,28 +11,18 @@ TARGET_JOBS = [
 # 경력 조건
 CAREER_MIN_YEARS = 0   # 최소 경력 (0 = 신입 포함)
 CAREER_MAX_YEARS = None   # 최대 경력 (None = 제한 없음)
-ACCEPT_NEWCOMER = True  # 신입 지원 가능 여부
+ACCEPT_NEWCOMER = False  # 신입 지원 가능 여부
 
 # 선호 회사 키워드 (포함되면 우선순위 높음)
 PREFERRED_COMPANIES = [
-    "넥슨",
-    "엔씨소프트",
-    "넷마블",
-    "크래프톤",
-    "스마일게이트",
-    "펄어비스",
-    "카카오게임즈",
-    "시프트업",
 ]
 
 # 제외할 회사/키워드 (포함되면 무조건 제외)
 EXCLUDED_KEYWORDS = [
-    "일본어 필수",
-    "중국어 필수",
 ]
 
 # Gemini 모델 설정
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-2.5-flash-lite"
 
 # AI 필터 활성화 여부
 # False: EXCLUDED_KEYWORDS만 검사 후 검색 결과를 모두 Slack 발송 (AI 호출 없음)
