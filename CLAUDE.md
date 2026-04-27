@@ -20,9 +20,9 @@ pip install -r requirements.txt
 
 # .env 파일 생성
 cp .env.example .env
-# .env에 ANTHROPIC_API_KEY, SLACK_WEBHOOK_URL 입력
+# .env에 GEMINI_API_KEY, SLACK_WEBHOOK_URL 입력
 
-# 실행 (즉시 1회 수집 후 3시간마다 반복)
+# 1회 실행 후 종료 (주기 실행은 GitHub Actions cron이 담당)
 python main.py
 ```
 
@@ -32,12 +32,12 @@ python main.py
 
 | 파일 | 역할 |
 |------|------|
-| `config.py` | 직무/경력/선호 회사 조건 + 크롤링/스케줄 설정 전체 |
+| `config.py` | 직무/경력/선호 회사 조건 + 크롤링/레이트리밋 설정 전체 |
 | `crawler.py` | requests + BeautifulSoup으로 목록/상세 페이지 파싱, `JobPosting` dataclass 반환 |
 | `database.py` | SQLite `seen_jobs` 테이블로 중복 방지, 매칭·발송 상태 관리 |
-| `ai_filter.py` | Gemini API(gemini-2.0-flash)에 config 조건을 프롬프트로 전달, YES/NO + 이유 파싱 |
+| `ai_filter.py` | Gemini API에 config 조건을 프롬프트로 전달, YES/NO + 이유 파싱 |
 | `notifier.py` | Slack Block Kit 카드 발송, 선호 회사 ⭐ 표시 |
-| `main.py` | 파이프라인 조율, `schedule` 라이브러리로 3시간 반복 |
+| `main.py` | 1회 실행으로 크롤링 → AI 필터링 수행 후 종료 (스케줄링은 GitHub Actions cron) |
 
 ## 주요 설정 변경
 
@@ -48,7 +48,8 @@ python main.py
 - `EXCLUDED_KEYWORDS` — 이 키워드가 공고에 있으면 무조건 제외
 - `ADDITIONAL_CONDITIONS` — AI 프롬프트에 자유 형식으로 추가 조건 기술
 - `CRAWL_PAGES` — 크롤링할 페이지 수 (기본 3)
-- `SCHEDULE_INTERVAL_HOURS` — 실행 간격 (기본 3시간)
+- `AI_CALL_DELAY_SECONDS` / `MAX_AI_CALLS_PER_RUN` — Gemini 레이트리밋 가드 (기본 4초 / 60건)
+- 주기 실행 간격은 GitHub Actions workflow의 cron으로 설정 (권장 3시간)
 
 ## 환경변수
 
