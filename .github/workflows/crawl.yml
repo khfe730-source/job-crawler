@@ -19,6 +19,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Log version
+        run: |
+          echo "Branch:  ${{ github.ref_name }}"
+          echo "Commit:  ${{ github.sha }}"
+          echo "Trigger: ${{ github.event_name }}"
+          git log -1 --format="%h %s (%an, %ar)"
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
