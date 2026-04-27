@@ -88,6 +88,19 @@ python main.py
 테스트 전 config.py에서 위 두 값을 확인하고, 다르면 변경 후 실행.
 테스트 완료 후 원래 설정으로 되돌릴 것.
 
+## 원격 저장소 반영 규칙
+
+원격 저장소(`origin`)에 변경사항을 올릴 때는 **절대 `main`/`master` 브랜치에 직접 push하지 말 것.**
+
+반드시 아래 순서로 진행:
+
+1. 작업 브랜치 생성 후 커밋: `git checkout -b <branch-name>`
+2. 브랜치 push: `git push -u origin <branch-name>`
+3. PR 생성: `gh pr create` 로 Pull Request 열기
+4. **PR 승인 및 머지는 사용자가 직접 수행** — Claude는 머지하지 않음
+
+PR 생성 후 URL을 사용자에게 알려주고 작업 종료.
+
 ## 작업 완료 후 Git 커밋 규칙
 
 작업이 끝날 때마다 반드시 아래 순서로 진행할 것:
