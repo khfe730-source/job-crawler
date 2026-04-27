@@ -51,11 +51,11 @@ GAMEJOB_BASE_URL = "https://www.gamejob.co.kr"
 CRAWL_PAGES = 3         # 키워드당 크롤링할 페이지 수 (TARGET_JOBS 키워드별 각각 적용)
 REQUEST_DELAY = 1.5     # 요청 간 딜레이 (초)
 
-# AI 필터 레이트리밋 (Gemini 2.5 Flash-Lite 무료 한도의 50% 기준)
-# 실제 한도: RPM 30, RPD 1000, TPM 250000 → 보수 기준: RPM 15, RPD 500
-# GitHub Actions cron(3시간마다, 8회/일) 기준으로 RPD 480 (500 한도 내) 안전 설계
-AI_CALL_DELAY_SECONDS: float = 4.0   # AI 호출 간 딜레이 (초). 60/15=4초로 RPM 15 보장
-MAX_AI_CALLS_PER_RUN: int = 60       # 1회 실행당 AI 호출 상한. 60×8회/일 = 480 RPD
+# AI 필터 레이트리밋 (Gemini 2.5 Flash-Lite 무료 티어 실제 enforced 한도 기준)
+# 운영 중 확인된 실제 enforce 한도: RPD 20 (quotaId: GenerateRequestsPerDayPerProjectPerModel-FreeTier)
+# GitHub Actions cron(6시간마다, 4회/일) × 2건/회 = 일일 8건 (20 RPD 한도 내 안전 마진)
+AI_CALL_DELAY_SECONDS: float = 4.0   # AI 호출 간 딜레이 (초). RPM 보호용
+MAX_AI_CALLS_PER_RUN: int = 2        # 1회 실행당 AI 호출 상한. 2×4회/일 = 8건/일
 
 # DB 설정
 DB_PATH = "jobs.db"

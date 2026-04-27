@@ -2,8 +2,9 @@ name: Crawl Jobs
 
 on:
   schedule:
-    # UTC 기준 3시간마다 실행 (KST 기준 9, 12, 15, 18, 21, 24, 3, 6시)
-    - cron: '0 */3 * * *'
+    # UTC 기준 6시간마다 실행 (KST 기준 9, 15, 21, 3시)
+    # Gemini 무료 티어 실제 enforced RPD 20 한도 대응
+    - cron: '0 */6 * * *'
   workflow_dispatch:
 
 concurrency:

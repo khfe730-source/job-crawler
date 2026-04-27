@@ -58,8 +58,8 @@ def crawl_once() -> None:
 def filter_pending() -> None:
     """필터 대기 공고를 처리한다.
 
-    레이트리밋 가드:
-    - RPM: AI 호출 간 AI_CALL_DELAY_SECONDS 대기 (Gemini RPM 15 준수)
+    레이트리밋 가드 (Gemini 무료 티어 실제 RPD 20 한도 대응):
+    - RPM: AI 호출 간 AI_CALL_DELAY_SECONDS 대기
     - RPD: 1회 실행당 최대 MAX_AI_CALLS_PER_RUN 호출
     - 429(QuotaExceeded) 발생 시 즉시 중단, 미처리 공고는 다음 cron 실행에서 처리
     """
