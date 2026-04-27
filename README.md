@@ -69,6 +69,23 @@ python main.py
 
 > **주기 실행:** GitHub Actions cron(예: 3시간마다)으로 반복 실행. 미처리 공고는 다음 cron 실행에서 자동으로 이어받음.
 
+## GitHub Actions 운영
+
+`.github/workflows/crawl.yml`이 3시간마다 자동 실행됩니다.
+
+**Secrets 설정** (Repo Settings → Secrets and variables → Actions):
+- `GEMINI_API_KEY` — Gemini API 키
+- `SLACK_WEBHOOK_URL` — Slack Webhook URL
+
+**수동 실행**:
+- Actions 탭 → "Crawl Jobs" workflow → Run workflow 버튼
+
+**DB 영속성**:
+- `actions/cache@v4`로 `jobs.db`를 캐시 저장/복원 (키: `jobs-db-${run_id}`, 복원: `jobs-db-` prefix 매칭)
+- 7일간 미실행 시 캐시 만료 → DB 초기화되어 누적 공고가 신규로 재인식됨 (3시간 cron이라 발생 가능성 낮음)
+
+**스케줄 변경**: `.github/workflows/crawl.yml`의 `cron` 표현식 수정 (UTC 기준)
+
 ## 사용 방법
 
 ### 1단계: 구직 조건 설정
