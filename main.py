@@ -10,7 +10,6 @@ from config import (
     MAX_AI_CALLS_PER_RUN,
     USE_AI_FILTER,
     LOG_ONLY,
-    MAX_NOTIFICATIONS_PER_RUN,
     NOTIFY_UNMATCHED,
 )
 from crawler import crawl_jobs
@@ -77,7 +76,6 @@ def filter_pending() -> None:
 
     matched_count = 0
     api_error_count = 0
-    notification_count = 0
     ai_call_count = 0
 
     for index, job in enumerate(jobs):
@@ -108,17 +106,8 @@ def filter_pending() -> None:
             matched_count += 1
             if send_job_notification(job, reason, matched=True):
                 mark_notified(job.job_id)
-            notification_count += 1
         elif NOTIFY_UNMATCHED:
             send_job_notification(job, reason, matched=False)
-            notification_count += 1
-
-        if MAX_NOTIFICATIONS_PER_RUN and notification_count >= MAX_NOTIFICATIONS_PER_RUN:
-            logger.info(
-                "최대 알림 한도 도달 (%d개), 나머지는 다음 사이클에 처리",
-                MAX_NOTIFICATIONS_PER_RUN,
-            )
-            break
 
     stats = get_stats()
     logger.info(

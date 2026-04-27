@@ -46,10 +46,6 @@ ADDITIONAL_CONDITIONS = """
 # AI 조건 불일치 공고도 Slack/로그로 출력 (AI 판단 검증용)
 NOTIFY_UNMATCHED: bool = True
 
-# 1회 실행당 최대 알림 발송 수 (None = 제한 없음)
-# 한도 초과 공고는 DB에 기록하지 않으므로 다음 사이클에 처리됨
-MAX_NOTIFICATIONS_PER_RUN: int | None = 5
-
 # 크롤링 설정
 GAMEJOB_BASE_URL = "https://www.gamejob.co.kr"
 CRAWL_PAGES = 3         # 키워드당 크롤링할 페이지 수 (TARGET_JOBS 키워드별 각각 적용)
