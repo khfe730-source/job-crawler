@@ -1,15 +1,13 @@
 import io
 import logging
 import os
-import schedule
 import sys
 import time
 from dotenv import load_dotenv
 
 from config import (
-    SCHEDULE_INTERVAL_HOURS,
-    FILTER_INTERVAL_MINUTES,
-    FILTER_BATCH_SIZE,
+    AI_CALL_DELAY_SECONDS,
+    MAX_AI_CALLS_PER_RUN,
     USE_AI_FILTER,
     LOG_ONLY,
     MAX_NOTIFICATIONS_PER_RUN,
@@ -39,9 +37,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 429 감지 시 True로 설정 → 다음 filter_once 1회 건너뛰기
-_skip_next_filter: bool = False
-
 
 def crawl_once() -> None:
     """크롤링만 수행하고 DB에 필터 대기 상태로 적재한다."""
@@ -61,34 +56,45 @@ def crawl_once() -> None:
     )
 
 
-def filter_once() -> None:
-    """필터 대기 공고 중 FILTER_BATCH_SIZE개를 AI 판단 + 알림 처리한다.
-    직전 사이클에 429 쿼터 초과가 감지되면 이번 실행은 건너뛴다."""
-    global _skip_next_filter
-    if _skip_next_filter:
-        logger.warning("직전 사이클 쿼터 초과(429) 감지 → 이번 필터 건너뜀")
-        _skip_next_filter = False
-        return
+def filter_pending() -> None:
+    """필터 대기 공고를 처리한다.
 
-    jobs = get_unfiltered(FILTER_BATCH_SIZE)
+    레이트리밋 가드:
+    - RPM: AI 호출 간 AI_CALL_DELAY_SECONDS 대기 (Gemini RPM 15 준수)
+    - RPD: 1회 실행당 최대 MAX_AI_CALLS_PER_RUN 호출
+    - 429(QuotaExceeded) 발생 시 즉시 중단, 미처리 공고는 다음 cron 실행에서 처리
+    """
+    jobs = get_unfiltered(MAX_AI_CALLS_PER_RUN)
     if not jobs:
-        logger.debug("필터 대기 공고 없음")
+        logger.info("필터 대기 공고 없음")
         return
 
-    logger.info("=== 필터링 시작 (%d개) ===", len(jobs))
+    logger.info(
+        "=== 필터링 시작 | 대상 %d개 (회당 상한 %d) ===",
+        len(jobs),
+        MAX_AI_CALLS_PER_RUN,
+    )
+
     matched_count = 0
     api_error_count = 0
     notification_count = 0
+    ai_call_count = 0
 
-    for job in jobs:
+    for index, job in enumerate(jobs):
         try:
             if USE_AI_FILTER:
+                if ai_call_count > 0:
+                    time.sleep(AI_CALL_DELAY_SECONDS)
                 matched, reason = is_job_matching(job)
+                ai_call_count += 1
             else:
                 matched, reason = check_excluded(job)
         except QuotaExceeded as e:
-            _skip_next_filter = True
-            logger.warning("쿼터 초과로 배치 중단, 다음 필터 사이클 건너뜀: %s", e)
+            logger.warning(
+                "쿼터 초과(429)로 중단 | 미처리 %d개는 다음 사이클에서 처리: %s",
+                len(jobs) - index,
+                e,
+            )
             break
 
         # 일반 API 오류: 필터 완료로 기록하지 않고 다음 사이클에 재시도
@@ -108,12 +114,16 @@ def filter_once() -> None:
             notification_count += 1
 
         if MAX_NOTIFICATIONS_PER_RUN and notification_count >= MAX_NOTIFICATIONS_PER_RUN:
-            logger.info("최대 알림 한도 도달 (%d개), 나머지는 다음 사이클에 처리", MAX_NOTIFICATIONS_PER_RUN)
+            logger.info(
+                "최대 알림 한도 도달 (%d개), 나머지는 다음 사이클에 처리",
+                MAX_NOTIFICATIONS_PER_RUN,
+            )
             break
 
     stats = get_stats()
     logger.info(
-        "=== 필터링 완료 | 매칭: %d개, API 오류: %d개 | 누적: %s ===",
+        "=== 필터링 완료 | AI 호출: %d, 매칭: %d, API 오류: %d | 누적: %s ===",
+        ai_call_count,
         matched_count,
         api_error_count,
         stats,
@@ -131,23 +141,9 @@ def main() -> None:
         raise SystemExit(f"필수 환경변수 누락: {', '.join(missing)}\n.env 파일을 확인하세요.")
 
     init_db()
-
-    # 시작 시 크롤링 1회 → 바로 첫 필터 실행
     crawl_once()
-    filter_once()
-
-    schedule.every(SCHEDULE_INTERVAL_HOURS).hours.do(crawl_once)
-    schedule.every(FILTER_INTERVAL_MINUTES).minutes.do(filter_once)
-    logger.info(
-        "스케줄 등록: 크롤링 매 %d시간, 필터 매 %d분 (배치 %d개)",
-        SCHEDULE_INTERVAL_HOURS,
-        FILTER_INTERVAL_MINUTES,
-        FILTER_BATCH_SIZE,
-    )
-
-    while True:
-        schedule.run_pending()
-        time.sleep(30)
+    filter_pending()
+    logger.info("=== 실행 완료, 종료 ===")
 
 
 if __name__ == "__main__":

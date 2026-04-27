@@ -1,22 +1,22 @@
 # gamejob-bot
 
-gamejob.co.kr 채용공고를 주기적으로 크롤링하여 Anthropic AI로 조건 부합 여부를 판단하고, 조건에 맞는 공고를 Slack으로 알림하는 봇.
+gamejob.co.kr 채용공고를 주기적으로 크롤링하여 Gemini AI로 조건 부합 여부를 판단하고, 조건에 맞는 공고를 Slack으로 알림하는 봇.
 
 ## 동작 방식
 
-크롤링과 AI 필터링이 **독립된 스케줄**로 동작합니다 (Gemini 무료 티어 한도를 분산 소진하기 위함).
+프로그램은 **1회 실행 후 종료**하는 구조입니다. 주기적 실행은 GitHub Actions cron(권장 3시간 간격)이 담당합니다.
 
-**크롤링 스케줄** (`SCHEDULE_INTERVAL_HOURS`, 기본 3시간):
-1. `TARGET_JOBS` 키워드별로 gamejob.co.kr 검색 API 호출
-2. 공고 ID로 중복 제거 후 상세 페이지까지 수집
-3. 신규 공고를 SQLite DB에 `filtered=0`(필터 대기)로 적재
+**1회 실행 흐름:**
+1. **크롤링** — `TARGET_JOBS` 키워드별로 gamejob.co.kr 검색 → 중복 제거 후 상세 페이지 수집 → SQLite DB에 `filtered=0`(필터 대기)로 적재
+2. **AI 필터링** — 필터 대기 공고를 오래된 순으로 최대 `MAX_AI_CALLS_PER_RUN`건 처리
+   - `EXCLUDED_KEYWORDS` 사전 검사 (API 호출 없이 제외)
+   - Gemini AI가 구직 조건 부합 여부 판단 (호출 간 `AI_CALL_DELAY_SECONDS` 대기로 RPM 준수)
+   - 결과를 Slack Block Kit 카드로 발송 (선호 회사는 ⭐ 표시)
+   - 처리 완료 공고는 `filtered=1`로 표시, API 오류/429는 다음 cron 실행에서 재시도
 
-**필터 스케줄** (`FILTER_INTERVAL_MINUTES`, 기본 5분 / `FILTER_BATCH_SIZE`, 기본 5개):
-1. 필터 대기 공고를 오래된 순으로 배치만큼 꺼냄
-2. `EXCLUDED_KEYWORDS` 사전 검사 (API 호출 없이 제외)
-3. Gemini AI가 구직 조건 부합 여부 판단
-4. 결과를 Slack Block Kit 카드로 발송 (선호 회사는 ⭐ 표시)
-5. 처리 완료 공고는 `filtered=1`로 표시, API 오류는 다음 사이클 재시도
+**Gemini 무료 한도(보수 기준 50%) 준수 설계:**
+- RPM 15 → 호출 간 4초 sleep
+- RPD 500 → 회당 60건 × 8회/일(3시간 간격) = 480 RPD
 
 ## 요구사항
 
@@ -58,17 +58,16 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/services/your/webhook/url
 ## 실행 방법
 
 ```bash
-# 즉시 크롤링 + 첫 필터 1회 실행 → 이후 각 스케줄로 반복
+# 1회 크롤링 + 필터링 후 종료
 python main.py
 ```
 
 실행 시 동작 순서:
 1. `.env` 파일에서 환경변수 로드 및 유효성 검사
 2. SQLite DB 초기화 및 마이그레이션 (`jobs.db` 자동 생성)
-3. 즉시 크롤링 1회 → 바로 첫 필터 배치 1회 실행
-4. 이후 `SCHEDULE_INTERVAL_HOURS`마다 크롤링, `FILTER_INTERVAL_MINUTES`마다 필터 배치 반복
+3. 크롤링 1회 → 필터 대기 공고 처리(최대 `MAX_AI_CALLS_PER_RUN`건) → 종료
 
-> **종료:** `Ctrl+C`로 언제든 중단 가능. 재시작 시 DB에 저장된 공고는 중복 발송되지 않음.
+> **주기 실행:** GitHub Actions cron(예: 3시간마다)으로 반복 실행. 미처리 공고는 다음 cron 실행에서 자동으로 이어받음.
 
 ## 사용 방법
 
@@ -99,9 +98,6 @@ ADDITIONAL_CONDITIONS = """
 
 # 키워드당 크롤링할 페이지 수 (TARGET_JOBS 키워드별 각각 적용)
 CRAWL_PAGES = 3
-
-# 자동 반복 간격 (시간)
-SCHEDULE_INTERVAL_HOURS = 3
 ```
 
 ### 2단계: 실행 및 로그 확인
@@ -113,9 +109,11 @@ python main.py
 정상 실행 시 아래와 같은 로그가 출력됩니다:
 
 ```
-2026-04-20 10:00:00 [INFO] __main__: === 채용공고 수집 시작 ===
-2026-04-20 10:00:05 [INFO] __main__: === 완료 | 신규: 12개, 조건 부합: 3개 | 누적 총계: ... ===
-2026-04-20 10:00:05 [INFO] __main__: 스케줄 등록: 매 3시간마다 실행
+2026-04-20 10:00:00 [INFO] __main__: === 크롤링 시작 ===
+2026-04-20 10:00:05 [INFO] __main__: === 크롤링 완료 | 신규: 12개 | 누적 총계: ... ===
+2026-04-20 10:00:05 [INFO] __main__: === 필터링 시작 | 대상 12개 (회당 상한 60) ===
+2026-04-20 10:01:00 [INFO] __main__: === 필터링 완료 | AI 호출: 12, 매칭: 3, API 오류: 0 | 누적: ... ===
+2026-04-20 10:01:00 [INFO] __main__: === 실행 완료, 종료 ===
 ```
 
 ### 3단계: Slack 알림 확인
@@ -157,23 +155,20 @@ ADDITIONAL_CONDITIONS = "재택근무 가능한 포지션 선호"
 # 크롤링할 페이지 수
 CRAWL_PAGES = 3
 
-# 크롤링 간격 (시간)
-SCHEDULE_INTERVAL_HOURS = 3
-
-# AI 필터 간격 (분) / 필터 1회당 처리 공고 수
-FILTER_INTERVAL_MINUTES = 5
-FILTER_BATCH_SIZE = 5
+# AI 필터 레이트리밋 (Gemini 무료 한도의 50% 기준)
+AI_CALL_DELAY_SECONDS = 4.0   # 호출 간 딜레이 (RPM 15 보장)
+MAX_AI_CALLS_PER_RUN = 60     # 1회 실행당 AI 호출 상한 (RPD 480/500)
 ```
 
 ## 폴더 구조
 
 ```
 gamejob-bot/
-├── main.py            # 파이프라인 조율, 스케줄 반복 실행
-├── config.py          # 구직 조건 및 크롤링/스케줄 설정 전체
+├── main.py            # 파이프라인 조율, 1회 실행 후 종료
+├── config.py          # 구직 조건 및 크롤링/레이트리밋 설정 전체
 ├── crawler.py         # gamejob.co.kr 목록/상세 페이지 파싱
 ├── database.py        # SQLite 중복 방지, 매칭·발송 상태 관리
-├── ai_filter.py       # Claude Haiku AI 조건 판단
+├── ai_filter.py       # Gemini AI 조건 판단
 ├── notifier.py        # Slack Block Kit 알림 발송
 ├── requirements.txt   # Python 의존성
 ├── .env.example       # 환경변수 템플릿
@@ -188,9 +183,9 @@ main.py → crawler.py → database.py → ai_filter.py → notifier.py
 
 | 파일 | 역할 |
 |------|------|
-| `config.py` | 직무/경력/선호 회사 조건 + 크롤링/스케줄 설정 전체 |
+| `config.py` | 직무/경력/선호 회사 조건 + 크롤링/레이트리밋 설정 전체 |
 | `crawler.py` | requests + BeautifulSoup으로 목록/상세 페이지 파싱, `JobPosting` dataclass 반환 |
 | `database.py` | SQLite `seen_jobs` 테이블로 중복 방지, 매칭·발송 상태 관리 |
 | `ai_filter.py` | Gemini API에 config 조건을 프롬프트로 전달, YES/NO + 이유 파싱 |
 | `notifier.py` | Slack Block Kit 카드 발송, 선호 회사 ⭐ 표시 |
-| `main.py` | 크롤링과 필터링을 별도 스케줄(`SCHEDULE_INTERVAL_HOURS` / `FILTER_INTERVAL_MINUTES`)로 반복 |
+| `main.py` | 1회 실행으로 크롤링 → 필터링 수행 후 종료 (스케줄링은 GitHub Actions cron) |
