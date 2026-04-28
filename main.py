@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 from config import (
     AI_CALL_DELAY_SECONDS,
+    GEMINI_MODELS,
     MAX_AI_CALLS_PER_RUN,
     USE_AI_FILTER,
     LOG_ONLY,
@@ -58,8 +59,9 @@ def crawl_once() -> None:
 def filter_pending() -> None:
     """필터 대기 공고를 처리한다.
 
-    레이트리밋 가드 (Gemini 무료 티어 실제 RPD 20 한도 대응):
-    - RPM: AI 호출 간 AI_CALL_DELAY_SECONDS 대기
+    레이트리밋 가드 (Gemini 무료 티어 모델별 RPD 20 한도, 2모델 라운드로빈 합산 운영):
+    - 호출 모델: GEMINI_MODELS 리스트를 라운드로빈 → 모델별 호출 빈도/일일량 절반으로 분산
+    - RPM: AI 호출 간 AI_CALL_DELAY_SECONDS 대기 (라운드로빈이라 모델당 실효 간격은 2배)
     - RPD: 1회 실행당 최대 MAX_AI_CALLS_PER_RUN 호출
     - 429(QuotaExceeded) 발생 시 즉시 중단, 미처리 공고는 다음 cron 실행에서 처리
     """
@@ -69,9 +71,10 @@ def filter_pending() -> None:
         return
 
     logger.info(
-        "=== 필터링 시작 | 대상 %d개 (회당 상한 %d) ===",
+        "=== 필터링 시작 | 대상 %d개 (회당 상한 %d, 모델 %s) ===",
         len(jobs),
         MAX_AI_CALLS_PER_RUN,
+        GEMINI_MODELS,
     )
 
     matched_count = 0
@@ -83,7 +86,8 @@ def filter_pending() -> None:
             if USE_AI_FILTER:
                 if ai_call_count > 0:
                     time.sleep(AI_CALL_DELAY_SECONDS)
-                matched, reason = is_job_matching(job)
+                model = GEMINI_MODELS[ai_call_count % len(GEMINI_MODELS)]
+                matched, reason = is_job_matching(job, model=model)
                 ai_call_count += 1
             else:
                 matched, reason = check_excluded(job)

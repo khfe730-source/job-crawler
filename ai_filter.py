@@ -13,7 +13,6 @@ from config import (
     PREFERRED_COMPANIES,
     EXCLUDED_KEYWORDS,
     ADDITIONAL_CONDITIONS,
-    GEMINI_MODEL,
 )
 
 logger = logging.getLogger(__name__)
@@ -75,8 +74,9 @@ def check_excluded(job: JobPosting) -> tuple[bool, str]:
     return True, ""
 
 
-def is_job_matching(job: JobPosting) -> tuple[bool | None, str]:
+def is_job_matching(job: JobPosting, model: str) -> tuple[bool | None, str]:
     """Gemini API로 공고가 조건에 맞는지 판단한다.
+    호출자가 사용할 모델(`model`)을 명시적으로 전달 — config.GEMINI_MODELS 라운드로빈 분배를 위해.
     (True/False, reason) 반환. 일반 API 오류 시 (None, 오류메시지) — 호출자는 DB 기록/알림을 건너뛰어 다음 사이클에 재시도하도록 함.
     429 쿼터 초과 시 QuotaExceeded 예외를 올려 현재 배치를 즉시 중단시킨다."""
     passed, reason = check_excluded(job)
@@ -87,12 +87,12 @@ def is_job_matching(job: JobPosting) -> tuple[bool | None, str]:
 
     try:
         response = _get_client().models.generate_content(
-            model=GEMINI_MODEL,
+            model=model,
             contents=prompt,
             config=types.GenerateContentConfig(max_output_tokens=400),
         )
         response_text = response.text.strip()
-        logger.info("AI 응답 [%s]: %s", job.job_id, response_text)
+        logger.info("AI 응답 [%s/%s]: %s", model, job.job_id, response_text)
 
         matched = "RESULT: YES" in response_text
         reason = ""
@@ -110,10 +110,10 @@ def is_job_matching(job: JobPosting) -> tuple[bool | None, str]:
 
     except genai_errors.APIError as e:
         if getattr(e, "code", None) == 429:
-            logger.warning("Gemini 쿼터 초과 [%s]: %s", job.job_id, getattr(e, "message", e))
+            logger.warning("Gemini 쿼터 초과 [%s/%s]: %s", model, job.job_id, getattr(e, "message", e))
             raise QuotaExceeded(str(e)) from e
-        logger.error("Gemini API 오류 [%s]: %s", job.job_id, e)
+        logger.error("Gemini API 오류 [%s/%s]: %s", model, job.job_id, e)
         return None, f"API 오류: {e}"
     except Exception as e:
-        logger.error("Gemini API 오류 [%s]: %s", job.job_id, e)
+        logger.error("Gemini API 오류 [%s/%s]: %s", model, job.job_id, e)
         return None, f"API 오류: {e}"
