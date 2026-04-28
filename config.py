@@ -22,7 +22,12 @@ EXCLUDED_KEYWORDS = [
 ]
 
 # Gemini 모델 설정
-GEMINI_MODEL = "gemini-2.5-flash-lite"
+# 두 모델을 라운드로빈으로 교대 호출하여 모델별 RPD 한도(각 20)를 합산 활용
+# (RPD/RPM 쿼터는 모델별로 독립이므로, 같은 키로 두 모델을 번갈아 호출하면 사실상 한도 2배)
+GEMINI_MODELS = [
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+]
 
 # AI 필터 활성화 여부
 # False: EXCLUDED_KEYWORDS만 검사 후 검색 결과를 모두 Slack 발송 (AI 호출 없음)
@@ -51,11 +56,12 @@ GAMEJOB_BASE_URL = "https://www.gamejob.co.kr"
 CRAWL_PAGES = 3         # 키워드당 크롤링할 페이지 수 (TARGET_JOBS 키워드별 각각 적용)
 REQUEST_DELAY = 1.5     # 요청 간 딜레이 (초)
 
-# AI 필터 레이트리밋 (Gemini 2.5 Flash-Lite 무료 티어 실제 enforced 한도 기준)
-# 운영 중 확인된 실제 enforce 한도: RPD 20 (quotaId: GenerateRequestsPerDayPerProjectPerModel-FreeTier)
-# GitHub Actions cron(6시간마다, 4회/일) × 2건/회 = 일일 8건 (20 RPD 한도 내 안전 마진)
-AI_CALL_DELAY_SECONDS: float = 4.0   # AI 호출 간 딜레이 (초). RPM 보호용
-MAX_AI_CALLS_PER_RUN: int = 2        # 1회 실행당 AI 호출 상한. 2×4회/일 = 8건/일
+# AI 필터 레이트리밋 (Gemini 무료 티어 모델별 RPD 20 한도 × 2모델 합산 운영)
+# 운영 중 확인된 실제 enforce 한도: RPD 20 (quotaId: GenerateRequestsPerDayPerProjectPerModel-FreeTier, 모델별 독립)
+# 호출은 GEMINI_MODELS 라운드로빈 → 각 모델은 절반의 호출만 수신하므로 실효 한도가 2배가 됨
+# GitHub Actions cron(6시간마다, 4회/일) × 4건/회 = 일일 16건 (모델당 8건, 20 RPD 한도 내 안전 마진)
+AI_CALL_DELAY_SECONDS: float = 2.0   # 호출 간 딜레이 (초). 라운드로빈이라 모델당 실효 4초 간격 → RPM 보호 유지
+MAX_AI_CALLS_PER_RUN: int = 4        # 1회 실행당 AI 호출 상한 (2모델 × 2건). 4×4회/일 = 16건/일 (모델당 8건)
 
 # DB 설정
 DB_PATH = "jobs.db"

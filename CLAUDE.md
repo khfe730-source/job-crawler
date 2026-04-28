@@ -48,7 +48,8 @@ python main.py
 - `EXCLUDED_KEYWORDS` — 이 키워드가 공고에 있으면 무조건 제외
 - `ADDITIONAL_CONDITIONS` — AI 프롬프트에 자유 형식으로 추가 조건 기술
 - `CRAWL_PAGES` — 크롤링할 페이지 수 (기본 3)
-- `AI_CALL_DELAY_SECONDS` / `MAX_AI_CALLS_PER_RUN` — Gemini 레이트리밋 가드 (기본 4초 / 2건)
+- `GEMINI_MODELS` — 라운드로빈 호출 모델 리스트 (기본 `gemini-2.5-flash`, `gemini-2.5-flash-lite`). 모델별 RPD가 독립이라 합산 한도 활용
+- `AI_CALL_DELAY_SECONDS` / `MAX_AI_CALLS_PER_RUN` — Gemini 레이트리밋 가드 (기본 2초 / 4건, 2모델 합산 기준)
 - 주기 실행 간격은 GitHub Actions workflow의 cron으로 설정 (현재 6시간)
 
 ## 환경변수
@@ -76,22 +77,25 @@ python main.py
 
 1. `EXCLUDED_KEYWORDS`는 API 호출 없이 사전 검사로 제외 (비용 절감)
 2. 통과한 공고만 Gemini API 호출 → `RESULT: YES/NO` + `REASON:` 파싱
-3. AI 모델 변경 시 `ai_filter.py`의 `model` 파라미터 수정
+3. AI 모델 변경 시 `config.py`의 `GEMINI_MODELS` 리스트 수정 — 호출 시 라운드로빈으로 모델 선택
 
-### Gemini 2.5 Flash-Lite 무료 티어 한도 (운영 중 확인된 실제 enforced 값)
+### Gemini 2.5 Flash / Flash-Lite 무료 티어 한도 (운영 중 확인된 실제 enforced 값)
 
-| 항목 | 공식 문서 | 실제 enforced | 운영 적용 |
-|------|----------|---------------|-----------|
-| RPD (일일 요청) | 1,000 | **20** | `MAX_AI_CALLS_PER_RUN × cron 횟수 ≤ 20` |
-| RPM (분당 요청) | 30 | (미상) | `AI_CALL_DELAY_SECONDS=4`로 보호 |
+쿼터(`GenerateRequestsPerDayPerProjectPerModel-FreeTier`)는 **모델별로 독립**이므로, 같은 API 키로 두 모델을 라운드로빈 호출하면 실효 한도가 2배가 됨.
+
+| 항목 | 공식 문서 | 실제 enforced (모델별) | 2모델 합산 운영 |
+|------|----------|------------------------|------------------|
+| RPD (일일 요청) | 1,000 | **20** | `MAX_AI_CALLS_PER_RUN × cron 횟수 ≤ 40` |
+| RPM (분당 요청) | 30 | (미상) | `AI_CALL_DELAY_SECONDS=2`로 보호 (모델당 실효 4초 간격) |
 | TPM (분당 토큰) | 250,000 | (미상) | 프롬프트 길이 통제로 사실상 충분 |
 
 > **주의**: 공식 문서와 실제 enforced 값이 크게 다름. 429 에러 quotaId가 `GenerateRequestsPerDayPerProjectPerModel-FreeTier` / quotaValue `20`으로 확인됨. 신규 무료 계정 또는 GCP 프로젝트 설정에 따라 한도가 달라질 수 있으니, 운영 중 실제 enforced 값을 모니터링하고 그 값을 기준으로 설계할 것.
 
 현재 설계(2026-04-28 기준):
-- cron 6시간 간격(1일 4회) × `MAX_AI_CALLS_PER_RUN=2` = **1일 8건** (20 RPD의 40%, 안전 마진)
+- 호출은 `GEMINI_MODELS = [gemini-2.5-flash, gemini-2.5-flash-lite]` 라운드로빈 (호출 순서대로 짝수=flash, 홀수=flash-lite)
+- cron 6시간 간격(1일 4회) × `MAX_AI_CALLS_PER_RUN=4` = **1일 16건** (모델당 8건, 모델 RPD 20의 40%, 안전 마진)
 - 한도 변경 시 `config.py`와 `crawl.yml`을 함께 조정
-- `QuotaExceeded` (429) 발생 시 즉시 중단, 미처리 공고는 다음 cron에서 재처리
+- `QuotaExceeded` (429) 발생 시 즉시 중단, 미처리 공고는 다음 cron에서 재처리 (한쪽 모델만 소진된 경우에도 일단 중단해서 다음 사이클에 재분배)
 
 ## 테스트 규칙
 
